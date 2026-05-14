@@ -1,6 +1,6 @@
 <!-- client/src/components/food/FoodCard.vue -->
 <template>
-  <div class="food-card">
+  <div class="food-card"@click="goDetail">
     <div class="card-image" :style="{ backgroundImage: `url(${food.image_url || '/images/food-default.jpg'})` }">
       <div class="price-badge">¥{{ food.avg_price }}</div>
     </div>
@@ -17,8 +17,14 @@
 </template>
 
 <script setup>
+import { useRouter } from 'vue-router'
 const props = defineProps({ food: Object });
-const truncate = (str, len) => str ? (str.length > len ? str.slice(0, len) + '...' : str) : '';
+
+const router = useRouter();
+const goDetail = () => {
+  router.push({ name: 'FoodDetail', params: { id: props.food.id } });
+};
+const truncate = (text, len) => text?.length > len ? text.slice(0, len) + '...' : text
 </script>
 
 <style scoped>

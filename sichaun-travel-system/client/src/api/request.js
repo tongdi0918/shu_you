@@ -13,9 +13,7 @@ service.interceptors.request.use(config => {
   return config;
 });
 
-service.interceptors.response.use(
-  res => res.data,
-  err => {
+service.interceptors.response.use(  res => res.data,  err => {
     ElMessage.error(err.response?.data?.msg || '请求失败');
     return Promise.reject(err);
   }

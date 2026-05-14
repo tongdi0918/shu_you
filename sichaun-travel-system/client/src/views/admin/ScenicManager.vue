@@ -39,7 +39,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { getSceneries, createScenic, updateScenic, deleteScenic } from '../../api/scenic'
+import { getSceneries, createScenic, updateScenic, deleteScenic as deleteScenicApi } from '../../api/scenic'
 const sceneries = ref([]);
 const dialogVisible = ref(false);
 const isEdit = ref(false);
@@ -61,7 +61,7 @@ async function saveScenic() {
     sceneries.value = res.data;
 }
 async function deleteScenic(id) {
-    await delScenic(id);
+    await deleteScenicApi(id);
     const res = await getSceneries();
     sceneries.value = res.data;
 }
