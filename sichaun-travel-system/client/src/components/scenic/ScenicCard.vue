@@ -1,131 +1,150 @@
 <!-- client/src/components/scenic/ScenicCard.vue -->
 <template>
-  <div class="scenic-card" @click="$router.push(`/scenic/${scenic.id}`)">
-    <div class="card-image" :style="{ backgroundImage: `url(${scenic.image_url || '/images/default.jpg'})` }">
-      <div class="level-badge">{{ scenic.level }}级景区</div>
-    </div>
-    <div class="card-body">
-      <h3 class="card-title">{{ scenic.name }}</h3>
-      <p class="card-location">📍 {{ scenic.city }}</p>
-      <p class="card-story">{{ truncate(scenic.description, 80) }}</p>
-      <div class="card-tags">
-        <el-tag v-for="tag in tagList" :key="tag" size="small" type="info">{{ tag }}</el-tag>
+  <el-card class="scenic-card" shadow="hover" @click="goDetail">
+    <img :src="scenic.image_url || '/placeholder.jpg'" class="card-image" />
+    <div class="card-badge">{{ scenic.level }}级景区</div>
+    <div class="card-content">
+      <h3>{{ scenic.name }}</h3>
+      <p class="city">{{ scenic.city }}</p>
+      <p class="desc">{{ truncate(scenic.description, 60) }}</p>
+      <div class="tags">
+        <el-tag v-for="tag in parseTags(scenic.tags)" :key="tag" size="small">{{ tag }}</el-tag>
       </div>
-      <div class="card-footer">
-        <span class="price" v-if="scenic.ticket_price">💰 ¥{{ scenic.ticket_price }}</span>
+      <div class="footer">
+        <span class="price">¥{{ scenic.ticket_price }}</span>
         <span class="rating">⭐ {{ scenic.rating }}</span>
-        <WarningBadge v-if="hasWarning" :warning="warning" />
+      </div>
+      <div class="actions" @click.stop>
+        <el-button size="small" type="warning" @click="handleFavorite">
+          <el-icon><Star /></el-icon> 收藏
+        </el-button>
       </div>
     </div>
-  </div>
+  </el-card>
 </template>
 
 <script setup>
-import { computed } from 'vue';
-import WarningBadge from '../weather/WarningBadge.vue';
+import { useRouter } from 'vue-router';
+import { addFavorite, recordBrowse } from '../../api/user';
+import { useUserStore } from '../../stores/userStore';
+import { ElMessage } from 'element-plus';
 
 const props = defineProps({
-  scenic: {
-    type: Object,
-    required: true
-  },
-  // 可选的预警数据，从父组件传入
-  warning: {
-    type: Object,
-    default: null
+  scenic: { type: Object, required: true },
+});
+
+const router = useRouter();
+const userStore = useUserStore();
+
+const truncate = (text, len) => {
+  if (!text) return '';
+  return text.length > len ? text.substring(0, len) + '...' : text;
+};
+
+const parseTags = (tags) => {
+  if (!tags) return [];
+  return tags.split(',').filter(Boolean);
+};
+
+const goDetail = () => {
+  if (userStore.isLoggedIn) {
+    recordBrowse({ itemType: 'scenery', itemId: props.scenic.id }).catch(() => {});
   }
-});
+  router.push(`/scenic/${props.scenic.id}`);
+};
 
-// 解析标签字符串为数组
-const tagList = computed(() => {
-  if (!props.scenic.tags) return [];
-  return props.scenic.tags.split(',').filter(Boolean);
-});
-
-// 是否存在高拥堵预警
-const hasWarning = computed(() => {
-  return props.warning && props.warning.congestion_level === 'high';
-});
-
-// 字符串截断函数
-const truncate = (str, len) => {
-  if (!str) return '';
-  return str.length > len ? str.slice(0, len) + '...' : str;
+const handleFavorite = async () => {
+  if (!userStore.isLoggedIn) {
+    ElMessage.warning('请先登录');
+    router.push('/login');
+    return;
+  }
+  try {
+    await addFavorite({ itemType: 'scenery', itemId: props.scenic.id });
+    ElMessage.success('收藏成功');
+  } catch (e) {
+    ElMessage.error('收藏失败');
+  }
 };
 </script>
 
 <style scoped>
 .scenic-card {
-  border-radius: 12px;
-  overflow: hidden;
+  margin-bottom: 20px;
   cursor: pointer;
-  background: #fff;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-  transition: transform 0.3s, box-shadow 0.3s;
-}
-.scenic-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
-}
-.card-image {
-  height: 180px;
-  background-size: cover;
-  background-position: center;
+  transition: transform 0.3s;
   position: relative;
+  overflow: hidden;
 }
-.level-badge {
+
+.scenic-card:hover {
+  transform: translateY(-5px);
+}
+
+.card-image {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+}
+
+.card-badge {
   position: absolute;
   top: 10px;
   right: 10px;
-  background: linear-gradient(135deg, #f093fb, #f5576c);
-  color: #fff;
-  padding: 4px 12px;
-  border-radius: 20px;
+  background: #667eea;
+  color: white;
+  padding: 4px 10px;
+  border-radius: 12px;
   font-size: 12px;
-  font-weight: bold;
 }
-.card-body {
-  padding: 16px;
+
+.card-content {
+  padding: 12px 0;
 }
-.card-title {
+
+.card-content h3 {
   font-size: 18px;
-  font-weight: 700;
-  color: #2c3e50;
-  margin: 0 0 4px;
+  margin-bottom: 4px;
 }
-.card-location {
+
+.city {
+  color: #999;
   font-size: 13px;
-  color: #909399;
-  margin: 0 0 6px;
+  margin-bottom: 8px;
 }
-.card-story {
+
+.desc {
   font-size: 13px;
-  color: #606266;
+  color: #666;
+  margin-bottom: 8px;
   line-height: 1.5;
-  margin: 0 0 10px;
 }
-.card-tags {
+
+.tags {
   display: flex;
-  gap: 6px;
   flex-wrap: wrap;
-  margin-bottom: 10px;
+  gap: 4px;
+  margin-bottom: 8px;
 }
-.card-footer {
+
+.footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 13px;
+  margin-bottom: 8px;
 }
+
 .price {
   color: #e6a23c;
-  font-weight: 600;
+  font-weight: bold;
+  font-size: 16px;
 }
+
 .rating {
   color: #f56c6c;
 }
+
+.actions {
+  text-align: right;
+}
 </style>
-
-
-
-
-

@@ -1,90 +1,137 @@
 <!-- client/src/components/food/FoodCard.vue -->
 <template>
-  <div class="food-card"@click="goDetail">
-    <div class="card-image" :style="{ backgroundImage: `url(${food.image_url || '/images/food-default.jpg'})` }">
-      <div class="price-badge">¥{{ food.avg_price }}</div>
-    </div>
-    <div class="card-body">
-      <div class="card-header">
-        <h3 class="card-title">{{ food.name }}</h3>
+  <el-card class="food-card" shadow="hover" @click="goDetail">
+    <img :src="food.image_url || '/placeholder.jpg'" class="card-image" />
+    <div class="card-content">
+      <h3>{{ food.name }}</h3>
+      <p class="city">{{ food.city }}</p>
+      <p class="desc">{{ truncate(food.description, 60) }}</p>
+      <div class="tags">
+        <el-tag v-for="tag in parseTags(food.tags)" :key="tag" size="small">{{ tag }}</el-tag>
+      </div>
+      <div class="footer">
+        <span class="price">¥{{ food.avg_price }}</span>
         <span class="rating">⭐ {{ food.rating }}</span>
       </div>
-      <p class="card-location">📍 {{ food.city }}</p>
-      <span class="category-tag">{{ food.category }}</span>
-      <p class="card-description">{{ truncate(food.description, 60) }}</p>
+      <div class="actions" @click.stop>
+        <el-button size="small" type="warning" @click="handleFavorite">
+          <el-icon><Star /></el-icon> 收藏
+        </el-button>
+      </div>
     </div>
-  </div>
+  </el-card>
 </template>
 
 <script setup>
-import { useRouter } from 'vue-router'
-const props = defineProps({ food: Object });
+import { useRouter } from 'vue-router';
+import { addFavorite, recordBrowse } from '../../api/user';
+import { useUserStore } from '../../stores/userStore';
+import { ElMessage } from 'element-plus';
+
+const props = defineProps({
+  food: { type: Object, required: true },
+});
 
 const router = useRouter();
-const goDetail = () => {
-  router.push({ name: 'FoodDetail', params: { id: props.food.id } });
+const userStore = useUserStore();
+
+const truncate = (text, len) => {
+  if (!text) return '';
+  return text.length > len ? text.substring(0, len) + '...' : text;
 };
-const truncate = (text, len) => text?.length > len ? text.slice(0, len) + '...' : text
+
+const parseTags = (tags) => {
+  if (!tags) return [];
+  return tags.split(',').filter(Boolean);
+};
+
+const goDetail = () => {
+  if (userStore.isLoggedIn) {
+    recordBrowse({ itemType: 'food', itemId: props.food.id }).catch(() => {});
+  }
+  router.push(`/food/${props.food.id}`);
+};
+
+const handleFavorite = async () => {
+  if (!userStore.isLoggedIn) {
+    ElMessage.warning('请先登录');
+    router.push('/login');
+    return;
+  }
+  try {
+    await addFavorite({ itemType: 'food', itemId: props.food.id });
+    ElMessage.success('收藏成功');
+  } catch (e) {
+    ElMessage.error('收藏失败');
+  }
+};
 </script>
 
 <style scoped>
 .food-card {
-    border-radius: 12px;
-    overflow: hidden;
-    background: #fff;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-    transition: transform 0.3s, box-shadow 0.3s;
-    cursor: pointer;
+  margin-bottom: 20px;
+  cursor: pointer;
+  transition: transform 0.3s;
+  overflow: hidden;
 }
+
 .food-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+  transform: translateY(-5px);
 }
+
 .card-image {
-    height: 160px;
-    background-size: cover;
-    background-position: center;
-    position: relative;
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
 }
-.price-badge {
-    position: absolute;
-    bottom: 10px;
-    right: 10px;
-    background: rgba(0,0,0,0.7);
-    color: #fff;
-    padding: 4px 10px;
-    border-radius: 12px;
-    font-size: 13px;
-    font-weight: 600;
+
+.card-content {
+  padding: 12px 0;
 }
-.card-body { padding: 14px; }
-.card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 4px;
+
+.card-content h3 {
+  font-size: 18px;
+  margin-bottom: 4px;
 }
-.card-title {
-    font-size: 17px;
-    font-weight: 700;
-    color: #2c3e50;
-    margin: 0;
+
+.city {
+  color: #999;
+  font-size: 13px;
+  margin-bottom: 8px;
 }
-.rating { color: #f56c6c; font-size: 13px; }
-.card-location { font-size: 12px; color: #909399; margin: 0 0 6px; }
-.category-tag {
-    display: inline-block;
-    background: #fff3e0;
-    color: #e6a23c;
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-size: 11px;
-    margin-bottom: 8px;
+
+.desc {
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 8px;
+  line-height: 1.5;
 }
-.card-description {
-    font-size: 13px;
-    color: #606266;
-    line-height: 1.5;
-    margin: 0;
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.price {
+  color: #e6a23c;
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.rating {
+  color: #f56c6c;
+}
+
+.actions {
+  text-align: right;
 }
 </style>

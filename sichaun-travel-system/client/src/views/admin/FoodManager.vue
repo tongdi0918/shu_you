@@ -1,122 +1,223 @@
 <!-- client/src/views/admin/FoodManager.vue -->
 <template>
-  <div class="admin-page">
-    <div class="admin-header">
-      <h2>🍜 美食数据管理</h2>
-      <el-button type="primary" @click="openDialog()">+ 新增美食</el-button>
-    </div>
+  <div class="food-manager">
+    <el-container>
+      <el-header class="admin-header">
+        <h2>🏔️ 蜀游记管理后台</h2>
+        <div class="header-right">
+          <span>欢迎，{{ userStore.username }}</span>
+          <el-button type="danger" size="small" @click="handleLogout">退出登录</el-button>
+        </div>
+      </el-header>
+      <el-container>
+        <el-aside width="200px" class="admin-aside">
+          <el-menu router :default-active="$route.path">
+            <el-menu-item index="/admin/dashboard">
+              <el-icon><DataAnalysis /></el-icon><span>数据概览</span>
+            </el-menu-item>
+            <el-menu-item index="/admin/scenic">
+              <el-icon><Picture /></el-icon><span>景区管理</span>
+            </el-menu-item>
+            <el-menu-item index="/admin/food">
+              <el-icon><DishDot /></el-icon><span>美食管理</span>
+            </el-menu-item>
+          </el-menu>
+        </el-aside>
+        <el-main>
+          <div class="toolbar">
+            <h3>美食数据管理</h3>
+            <el-button type="primary" @click="openDialog()">
+              <el-icon><Plus /></el-icon> 新增美食
+            </el-button>
+          </div>
+          <el-table :data="foods" v-loading="loading" border stripe>
+            <el-table-column prop="id" label="ID" width="60" />
+            <el-table-column prop="name" label="名称" width="180" />
+            <el-table-column prop="city" label="城市" width="120" />
+            <el-table-column prop="category" label="类别" width="100" />
+            <el-table-column prop="avg_price" label="均价(¥)" width="100" />
+            <el-table-column prop="rating" label="评分" width="80" />
+            <el-table-column label="操作" width="200">
+              <template #default="{ row }">
+                <el-button size="small" @click="openDialog(row)">编辑</el-button>
+                <el-button size="small" type="danger" @click="handleDelete(row)">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
 
-    <el-table :data="foods" stripe style="margin-top:20px">
-      <el-table-column prop="id" label="ID" width="60"/>
-      <el-table-column prop="name" label="名称" width="150"/>
-      <el-table-column prop="city" label="城市" width="100"/>
-      <el-table-column prop="category" label="分类" width="100"/>
-      <el-table-column prop="avg_price" label="均价(¥)" width="100"/>
-      <el-table-column prop="rating" label="评分" width="80"/>
-      <el-table-column label="操作" min-width="200">
-        <template #default="{ row }">
-          <el-button size="small" @click="openDialog(row)">编辑</el-button>
-          <el-button size="small" type="danger" @click="handleDelete(row.id)">删除</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
-
-    <el-dialog :title="isEdit ? '编辑美食' : '新增美食'" v-model="dialogVisible" width="600px">
-      <el-form :model="form" label-width="100px">
-        <el-form-item label="名称">
-          <el-input v-model="form.name"/>
-        </el-form-item>
-        <el-form-item label="城市">
-          <el-input v-model="form.city"/>
-        </el-form-item>
-        <el-form-item label="分类">
-          <el-select v-model="form.category">
-            <el-option label="经典川菜" value="经典川菜"/>
-            <el-option label="小吃" value="小吃"/>
-            <el-option label="面食" value="面食"/>
-            <el-option label="火锅" value="火锅"/>
-            <el-option label="特色菜" value="特色菜"/>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="描述">
-          <el-input v-model="form.description" type="textarea" :rows="4"/>
-        </el-form-item>
-        <el-form-item label="均价">
-          <el-input-number v-model="form.avg_price" :min="0"/>
-        </el-form-item>
-        <el-form-item label="标签">
-          <el-input v-model="form.tags" placeholder="逗号分隔"/>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible=false">取消</el-button>
-        <el-button type="primary" @click="handleSave">保存</el-button>
-      </template>
-    </el-dialog>
+          <!-- 新增/编辑弹窗 -->
+          <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑美食' : '新增美食'" width="600px">
+            <el-form :model="form" label-width="100px">
+              <el-row :gutter="20">
+                <el-col :span="12">
+                  <el-form-item label="美食名称">
+                    <el-input v-model="form.name" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="所在城市">
+                    <el-input v-model="form.city" />
+                  </el-form-item>
+                </el-col>
+              </el-row>
+              <el-row :gutter="20">
+                <el-col :span="12">
+                  <el-form-item label="类别">
+                    <el-select v-model="form.category" style="width: 100%">
+                      <el-option v-for="c in ['火锅','小吃','面食','川菜','烧烤','甜品']" :key="c" :label="c" :value="c" />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="均价">
+                    <el-input-number v-model="form.avg_price" :min="0" :precision="2" style="width: 100%" />
+                  </el-form-item>
+                </el-col>
+              </el-row>
+              <el-form-item label="描述">
+                <el-input v-model="form.description" type="textarea" :rows="3" />
+              </el-form-item>
+              <el-form-item label="图片URL">
+                <el-input v-model="form.image_url" />
+              </el-form-item>
+              <el-form-item label="标签">
+                <el-input v-model="form.tags" placeholder="逗号分隔" />
+              </el-form-item>
+              <el-form-item label="评分">
+                <el-input-number v-model="form.rating" :min="0" :max="5" :step="0.1" style="width: 100%" />
+              </el-form-item>
+            </el-form>
+            <template #footer>
+              <el-button @click="dialogVisible = false">取消</el-button>
+              <el-button type="primary" @click="handleSave">保存</el-button>
+            </template>
+          </el-dialog>
+        </el-main>
+      </el-container>
+    </el-container>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { useUserStore } from '../../stores/userStore';
 import { getAdminFoods, createFood, updateFood, deleteFood } from '../../api/admin';
 import { ElMessage, ElMessageBox } from 'element-plus';
 
+const router = useRouter();
+const userStore = useUserStore();
+
 const foods = ref([]);
+const loading = ref(false);
 const dialogVisible = ref(false);
 const isEdit = ref(false);
-const form = ref({ name: '', city: '', category: '', description: '', avg_price: 0, tags: '' });
-let editId = null;
 
-onMounted(async () => {
-    const res = await getAdminFoods();
-    foods.value = res.data;
+const form = reactive({
+  id: null, name: '', city: '', category: '', description: '',
+  image_url: '', avg_price: 0, tags: '', rating: 4.5,
 });
 
-function openDialog(row) {
-    if (row) {
-        isEdit.value = true;
-        editId = row.id;
-        form.value = { ...row };
-    } else {
-        isEdit.value = false;
-        editId = null;
-        form.value = { name: '', city: '', category: '', description: '', avg_price: 0, tags: '' };
-    }
-    dialogVisible.value = true;
-}
+const loadData = async () => {
+  loading.value = true;
+  try {
+    const res = await getAdminFoods();
+    foods.value = res.data || [];
+  } catch (e) {
+    ElMessage.error('加载美食数据失败');
+  } finally {
+    loading.value = false;
+  }
+};
 
-async function handleSave() {
+const resetForm = () => {
+  Object.assign(form, {
+    id: null, name: '', city: '', category: '', description: '',
+    image_url: '', avg_price: 0, tags: '', rating: 4.5,
+  });
+};
+
+const openDialog = (row = null) => {
+  resetForm();
+  if (row) {
+    isEdit.value = true;
+    Object.assign(form, row);
+  } else {
+    isEdit.value = false;
+  }
+  dialogVisible.value = true;
+};
+
+const handleSave = async () => {
+  try {
     if (isEdit.value) {
-        await updateFood({ ...form.value, id: editId });
-        ElMessage.success('更新成功');
+      await updateFood(form.id, form);
+      ElMessage.success('美食更新成功');
     } else {
-        await createFood(form.value);
-        ElMessage.success('新增成功');
+      await createFood(form);
+      ElMessage.success('美食新增成功');
     }
     dialogVisible.value = false;
-    const res = await getAdminFoods();
-    foods.value = res.data;
-}
+    loadData();
+  } catch (e) {
+    ElMessage.error('操作失败');
+  }
+};
 
-async function handleDelete(id) {
-    await ElMessageBox.confirm('确定删除该美食吗？', '提示', { type: 'warning' });
-    await deleteFood(id);
-    ElMessage.success('删除成功');
-    const res = await getAdminFoods();
-    foods.value = res.data;
-}
+const handleDelete = async (row) => {
+  try {
+    await ElMessageBox.confirm(`确定删除美食"${row.name}"？`, '警告', { type: 'warning' });
+    await deleteFood(row.id);
+    ElMessage.success('美食删除成功');
+    loadData();
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error('删除失败');
+  }
+};
+
+const handleLogout = () => {
+  userStore.logout();
+  router.push('/admin');
+};
+
+onMounted(loadData);
 </script>
 
 <style scoped>
-.admin-page {
-    padding: 30px;
-    background: #f0f2f5;
-    min-height: 100vh;
+.food-manager {
+  min-height: 100vh;
+  background: #f5f7fa;
 }
+
 .admin-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 0 20px;
+  height: 60px;
 }
-.admin-header h2 { margin: 0; color: #2c3e50; }
+
+.admin-header h2 { margin: 0; font-size: 20px; }
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.admin-aside {
+  background: #fff;
+  border-right: 1px solid #e4e7ed;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.toolbar h3 { margin: 0; }
 </style>

@@ -1,55 +1,29 @@
+<!-- client/src/views/user/RegisterView.vue -->
 <template>
   <div class="register-container">
-    <h1>用户注册</h1>
-    <p>加入蜀游记，开启智能旅行</p>
-    <el-form
-      ref="registerFormRef"
-      :model="registerForm"
-      :rules="registerRules"
-      class="register-form"
-    >
-      <el-form-item prop="username">
-        <el-input
-          v-model="registerForm.username"
-          placeholder="请输入用户名"
-          prefix-icon="User"
-        />
-      </el-form-item>
-      <el-form-item prop="password">
-        <el-input
-          v-model="registerForm.password"
-          type="password"
-          placeholder="请输入密码"
-          prefix-icon="Lock"
-          show-password
-        />
-      </el-form-item>
-      <el-form-item prop="confirmPassword">
-        <el-input
-          v-model="registerForm.confirmPassword"
-          type="password"
-          placeholder="请确认密码"
-          prefix-icon="Lock"
-          show-password
-        />
-      </el-form-item>
-      <el-form-item prop="phone">
-        <el-input
-          v-model="registerForm.phone"
-          placeholder="请输入手机号（选填）"
-          prefix-icon="Phone"
-        />
-      </el-form-item>
-      <el-form-item>
-        <el-button type="primary" @click="handleRegister" :loading="loading">
-          注 册
-        </el-button>
-      </el-form-item>
-    </el-form>
-    <p>
-      已有账号？
-      <router-link to="/login">立即登录</router-link>
-    </p>
+    <el-card class="register-card">
+      <h2>用户注册</h2>
+      <p class="subtitle">加入蜀游记，开启智能旅行</p>
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="0">
+        <el-form-item prop="username">
+          <el-input v-model="form.username" placeholder="请输入用户名" prefix-icon="User" />
+        </el-form-item>
+        <el-form-item prop="password">
+          <el-input v-model="form.password" type="password" placeholder="请输入密码" prefix-icon="Lock" show-password />
+        </el-form-item>
+        <el-form-item prop="phone">
+          <el-input v-model="form.phone" placeholder="请输入手机号（选填）" prefix-icon="Phone" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :loading="loading" @click="handleRegister" style="width: 100%">
+            注 册
+          </el-button>
+        </el-form-item>
+      </el-form>
+      <p class="login-link">
+        已有账号？ <router-link to="/login">立即登录</router-link>
+      </p>
+    </el-card>
   </div>
 </template>
 
@@ -61,56 +35,66 @@ import { ElMessage } from 'element-plus';
 
 const router = useRouter();
 const userStore = useUserStore();
-const registerFormRef = ref(null);
 const loading = ref(false);
 
-const registerForm = reactive({
+const form = reactive({
   username: '',
   password: '',
-  confirmPassword: '',
-  phone: ''
+  phone: '',
 });
 
-const validateConfirmPassword = (rule, value, callback) => {
-  if (value !== registerForm.password) {
-    callback(new Error('两次输入的密码不一致'));
-  } else {
-    callback();
-  }
-};
-
-const registerRules = {
+const rules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, message: '密码长度不能少于6位', trigger: 'blur' }
-  ],
-  confirmPassword: [
-    { required: true, message: '请确认密码', trigger: 'blur' },
-    { validator: validateConfirmPassword, trigger: 'blur' }
-  ],
-  phone: [
-    { pattern: /^1[3-9]\\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' }
-  ]
+  password: [{ required: true, min: 6, message: '密码至少6位', trigger: 'blur' }],
 };
 
 const handleRegister = async () => {
-  if (!registerFormRef.value) return;
-  await registerFormRef.value.validate(async (valid) => {
-    if (!valid) return;
-    loading.value = true;
-    const res = await userStore.register(
-      registerForm.username,
-      registerForm.password,
-      registerForm.phone
-    );
-    loading.value = false;
-    if (res.success) {
-      ElMessage.success('注册成功，请登录');
-      router.push('/login');
-    } else {
-      ElMessage.error(res.msg);
-    }
-  });
+  loading.value = true;
+  const result = await userStore.register(form.username, form.password, form.phone);
+  loading.value = false;
+  if (result.success) {
+    ElMessage.success(result.msg);
+    router.push('/login');
+  } else {
+    ElMessage.error(result.msg);
+  }
 };
 </script>
+
+<style scoped>
+.register-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: calc(100vh - 60px);
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+}
+
+.register-card {
+  width: 400px;
+  padding: 20px;
+}
+
+.register-card h2 {
+  text-align: center;
+  margin-bottom: 8px;
+  color: #333;
+}
+
+.subtitle {
+  text-align: center;
+  color: #999;
+  margin-bottom: 24px;
+  font-size: 14px;
+}
+
+.login-link {
+  text-align: center;
+  font-size: 14px;
+  color: #999;
+}
+
+.login-link a {
+  color: #667eea;
+}
+</style>

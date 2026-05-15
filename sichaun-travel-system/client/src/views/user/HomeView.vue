@@ -1,54 +1,133 @@
 <!-- client/src/views/user/HomeView.vue -->
 <template>
-  <div class="home-page">
-    <!-- 头部 Banner -->
-    <section class="hero" :style="{ backgroundImage: `url('/images/sichuan-hero.jpg')` }">
-      <div class="hero-overlay">
-        <h1>天府之国 · 四川</h1>
-        <p>探秘蜀地山水,品味川味人间|18大5A景区等你来</p>
-        <el-button type="warning" size="large" round @click="$router.push('/recommend')">🎯 智能推荐旅行</el-button>
+  <div class="home-container">
+    <AppHeader />
+    
+    <!-- Hero 区域 -->
+    <section class="hero">
+      <h1>天府之国 · 四川</h1>
+      <p>探秘蜀地山水，品味川味人间 | 18大5A景区等你来</p>
+      <div class="hero-actions">
+        <el-button type="primary" size="large" @click="$router.push('/recommend')">
+          智能推荐旅行
+        </el-button>
+        <el-button v-if="userStore.isLoggedIn" size="large" @click="$router.push('/profile')">
+          个人中心
+        </el-button>
       </div>
     </section>
-    <!-- 景区栏目 -->
-    <section class="section">
-      <h2 class="section-title">🏔️ 四川 5A 级景区</h2>
-      <div class="card-grid">
-        <ScenicCard v-for="scenic in sceneries" :key="scenic.id" :scenic="scenic" />
-      </div>
+
+    <!-- 快捷入口 -->
+    <section class="quick-links" v-if="userStore.isLoggedIn">
+      <el-row :gutter="20">
+        <el-col :span="8">
+          <el-card shadow="hover" @click="$router.push('/profile')" class="clickable-card">
+            <el-icon :size="32" color="#667eea"><User /></el-icon>
+            <h4>个人信息</h4>
+          </el-card>
+        </el-col>
+        <el-col :span="8">
+          <el-card shadow="hover" @click="$router.push('/favorites')" class="clickable-card">
+            <el-icon :size="32" color="#e6a23c"><Star /></el-icon>
+            <h4>我的收藏</h4>
+          </el-card>
+        </el-col>
+        <el-col :span="8">
+          <el-card shadow="hover" @click="$router.push('/history')" class="clickable-card">
+            <el-icon :size="32" color="#67c23a"><Clock /></el-icon>
+            <h4>浏览历史</h4>
+          </el-card>
+        </el-col>
+      </el-row>
     </section>
-    <!-- 美食栏目 -->
+
+    <!-- 景区列表 -->
     <section class="section">
-      <h2 class="section-title">🍜 天府名菜</h2>
-      <div class="card-grid">
-        <FoodCard v-for="food in foods" :key="food.id" :food="food" />
-      </div>
+      <h2>🏞️ 四川5A级景区</h2>
+      <ScenicList />
+    </section>
+
+    <!-- 美食列表 -->
+    <section class="section">
+      <h2>🍲 天府名菜</h2>
+      <FoodList />
     </section>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
-import { getSceneries } from '../../api/scenic';
-import { getFoods } from '../../api/food';
-import ScenicCard from '../../components/scenic/ScenicCard.vue';
-import FoodCard from '../../components/food/FoodCard.vue';
+import AppHeader from '../../components/common/AppHeader.vue';
+import ScenicList from '../../components/scenic/ScenicList.vue';
+import FoodList from '../../components/food/FoodList.vue';
+import { useUserStore } from '../../stores/userStore';
 
-const sceneries = ref([]);
-const foods = ref([]);
-
-onMounted(async () => {
-    const [sRes, fRes] = await Promise.all([getSceneries(), getFoods()]);
-    sceneries.value = sRes.data;
-    foods.value = fRes.data;
-});
+const userStore = useUserStore();
 </script>
 
 <style scoped>
-.hero { height: 400px; background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; }
-.hero-overlay { text-align: center; color: #fff; background: rgba(0,0,0,0.45); padding: 40px 60px; border-radius: 16px; }
-.hero-overlay h1 { font-size: 42px; margin: 0 0 10px; }
-.hero-overlay p { font-size: 18px; margin: 0 0 20px; }
-.section { max-width: 1200px; margin: 0 auto; padding: 40px 20px; }
-.section-title { font-size: 24px; font-weight: 700; color: #2c3e50; margin-bottom: 20px; border-left: 4px solid #f5576c; padding-left: 12px; }
-.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; }
+.home-container {
+  min-height: 100vh;
+  background: #f5f7fa;
+}
+
+.hero {
+  text-align: center;
+  padding: 80px 20px 60px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.hero h1 {
+  font-size: 42px;
+  margin-bottom: 16px;
+}
+
+.hero p {
+  font-size: 18px;
+  opacity: 0.9;
+  margin-bottom: 32px;
+}
+
+.hero-actions {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+}
+
+.quick-links {
+  max-width: 1200px;
+  margin: -30px auto 0;
+  padding: 0 20px;
+  position: relative;
+  z-index: 10;
+}
+
+.clickable-card {
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.3s;
+}
+
+.clickable-card:hover {
+  transform: translateY(-5px);
+}
+
+.clickable-card h4 {
+  margin-top: 12px;
+  color: #333;
+}
+
+.section {
+  max-width: 1200px;
+  margin: 40px auto;
+  padding: 0 20px;
+}
+
+.section h2 {
+  font-size: 28px;
+  margin-bottom: 24px;
+  color: #333;
+  border-left: 4px solid #667eea;
+  padding-left: 16px;
+}
 </style>

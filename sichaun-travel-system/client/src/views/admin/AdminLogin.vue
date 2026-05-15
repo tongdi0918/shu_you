@@ -1,82 +1,79 @@
-<!-- client/src/views/admin/Dashboard.vue -->
+<!-- client/src/views/admin/AdminLogin.vue -->
 <template>
-  <div class="admin-dashboard">
-    <div class="admin-header">
-      <h2>📊 管理仪表盘</h2>
-      <el-button @click="userStore.logout(); $router.push('/admin')">退出</el-button>
-    </div>
-
-    <div class="stats-grid">
-      <el-card class="stat-card">
-        <span class="stat-num">{{ stats.userCount }}</span>
-        <span class="stat-label">注册用户</span>
-      </el-card>
-      <el-card class="stat-card">
-        <span class="stat-num">{{ stats.scenicCount }}</span>
-        <span class="stat-label">景区数量</span>
-      </el-card>
-      <el-card class="stat-card">
-        <span class="stat-num">{{ stats.foodCount }}</span>
-        <span class="stat-label">美食数量</span>
-      </el-card>
-      <el-card class="stat-card warning">
-        <span class="stat-num">{{ stats.highWarningCount }}</span>
-        <span class="stat-label">高拥堵预警</span>
-      </el-card>
-    </div>
-
-    <div class="admin-nav">
-      <el-button type="primary" @click="$router.push('/admin/scenic')">🏔️ 景区管理</el-button>
-      <el-button type="success" @click="$router.push('/admin/food')">🍜 美食管理</el-button>
-    </div>
+  <div class="admin-login-container">
+    <el-card class="admin-login-card">
+      <h2>🔐 管理员登录</h2>
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="0">
+        <el-form-item prop="username">
+          <el-input v-model="form.username" placeholder="管理员用户名" prefix-icon="User" />
+        </el-form-item>
+        <el-form-item prop="password">
+          <el-input v-model="form.password" type="password" placeholder="管理员密码" prefix-icon="Lock" show-password />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :loading="loading" @click="handleLogin" style="width: 100%">
+            管理员登录
+          </el-button>
+        </el-form-item>
+      </el-form>
+    </el-card>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, reactive } from 'vue';
+import { useRouter } from 'vue-router';
 import { useUserStore } from '../../stores/userStore';
-import { getAdminStats } from '../../api/admin';
+import { ElMessage } from 'element-plus';
 
+const router = useRouter();
 const userStore = useUserStore();
-const stats = ref({
-    userCount: 0,
-    scenicCount: 0,
-    foodCount: 0,
-    highWarningCount: 0
+const loading = ref(false);
+
+const form = reactive({
+  username: '',
+  password: '',
 });
 
-onMounted(async () => {
-    try {
-        const res = await getAdminStats();
-        stats.value = res.data;
-    } catch (e) {
-        console.error(e);
+const rules = {
+  username: [{ required: true, message: '请输入管理员用户名', trigger: 'blur' }],
+  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+};
+
+const handleLogin = async () => {
+  loading.value = true;
+  const result = await userStore.login(form.username, form.password);
+  loading.value = false;
+  if (result.success) {
+    if (userStore.isAdmin) {
+      ElMessage.success('管理员登录成功');
+      router.push('/admin/dashboard');
+    } else {
+      ElMessage.error('非管理员账号，无权访问');
+      userStore.logout();
     }
-});
+  } else {
+    ElMessage.error(result.msg);
+  }
+};
 </script>
 
 <style scoped>
-.admin-dashboard {
-    padding: 30px;
-    background: #f0f2f5;
-    min-height: 100vh;
+.admin-login-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #434343 0%, #000000 100%);
 }
-.admin-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 30px;
+
+.admin-login-card {
+  width: 400px;
+  padding: 20px;
 }
-.admin-header h2 { margin: 0; color: #2c3e50; }
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 20px;
-    margin-bottom: 40px;
+
+.admin-login-card h2 {
+  text-align: center;
+  margin-bottom: 24px;
 }
-.stat-card { text-align: center; padding: 20px; }
-.stat-num { display: block; font-size: 36px; font-weight: 700; color: #2c3e50; }
-.stat-label { font-size: 14px; color: #909399; }
-.stat-card.warning .stat-num { color: #f56c6c; }
-.admin-nav { display: flex; gap: 20px; justify-content: center; }
 </style>
