@@ -4,11 +4,12 @@ const cors = require('cors');
 const path = require('path');
 require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
+
 const app = express();
 
-// ✅ CORS 配置改为更宽松的规则（允许公网访问）
+// ✅ CORS 配置
 app.use(cors({
-  origin: '*',                      // 允许任何来源访问
+  origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
@@ -21,6 +22,7 @@ app.use('/api/food', require('./routes/food'));
 app.use('/api/recommend', require('./routes/recommend'));
 app.use('/api/route', require('./routes/route'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/user', require('./routes/user'));  // 🆕 新增用户个人中心路由
 
 // 静态文件（生产环境）
 app.use(express.static(path.join(__dirname, '../client/dist')));
@@ -29,7 +31,8 @@ app.get('*', (req, res) => {
 });
 
 app.use(errorHandler);
+
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {    // ✅ 改为监听 0.0.0.0，接受来自任何 IP 的请求
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
 });

@@ -20,7 +20,7 @@ CREATE TABLE sceneries (
     city VARCHAR(50) NOT NULL,
     level VARCHAR(10) DEFAULT '5A',
     description TEXT,                    -- 故事化描述
-    image_url VARCHAR(255),
+    image_url VARCHAR(500),
     longitude DECIMAL(10,7),
     latitude  DECIMAL(10,7),
     ticket_price DECIMAL(10,2),
@@ -38,7 +38,7 @@ CREATE TABLE foods (
     city VARCHAR(50) NOT NULL,
     category VARCHAR(50),               -- 火锅,小吃,面食,...
     description TEXT,                    -- 故事化描述
-    image_url VARCHAR(255),
+    image_url VARCHAR(500),
     longitude DECIMAL(10,7),
     latitude  DECIMAL(10,7),
     avg_price DECIMAL(10,2),
@@ -83,3 +83,25 @@ CREATE TABLE warnings (
     warning_text VARCHAR(255),
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
+
+
+-- 用户收藏表
+CREATE TABLE favorites (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  item_type ENUM('scenery','food') NOT NULL,
+  item_id INT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_fav (user_id, item_type, item_id),
+  INDEX idx_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 用户浏览历史表
+CREATE TABLE browse_history (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  item_type ENUM('scenery','food') NOT NULL,
+  item_id INT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_user_time (user_id, created_at DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
