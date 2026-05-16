@@ -1,0 +1,35 @@
+备注：图片按城市分类，用英文名字命名(如hejiangmen.jpg)
+做两个表格，列标题如下。表格数据做完了后期转sql语句
+李yy别磨蹭，哈哈哈
+
+
+
+INSERT INTO sceneries (name, city, level, description, ticket_price, tags, longitude, latitude, image_url, business_hours) VALUES
+('九寨沟风景名胜区', '阿坝藏族羌族自治州', '5A', '九寨沟位于川西北高原118个海子如翡翠散佛时间……', 169, '自然风光,世界遗产,摄影圣地', 103.9014, 33.2632, '/images/sceneries/jiuzhaigou.jpg','07:00-19:00')
+
+字段名		数据类型		示例值						含义
+name		字符串		九寨沟风景名胜区				景区名称
+city			字符串		阿坝藏族羌族自治州				所在城市 / 地区
+level			字符串		5A							景区评级（5A/3A 等）
+description		文本字符串		景区文案					
+ticket_price	数值（浮点型）	169							门票价格（元）
+tags			字符串		自然风光，世界遗产，摄影圣地		标签（用逗号分隔）
+longitude		浮点数		103.9014						地理经度
+latitude		浮点数		33.2632						地理纬度
+image_url		字符串		/images/sceneries/……				景区图片存储路径
+business_hours	字符串		08:00-17:00					时间区间
+
+ INSERT INTO foods (name, city, category, description, avg_price, tags, longitude, latitude, image_url) VALUES
+('麻婆豆腐', '成都市', '经典川菜', '一勺花椒，一把辣椒，嫩豆腐在滚烫的……', 35, '麻辣,经典川菜,下饭神器', 104.0668, 30.5728, '/images/foods/mapodoufu.jpg')
+
+字段名		数据类型		示例值						含义
+name		字符串		麻婆豆腐						美食名称
+city			字符串		成都市						所属城市
+category		字符串		经典川菜						美食分类
+description		文本字符串		美食文案						美食特色介绍
+avg_price		数值（浮点型）	35							人均 / 参考价格（元）
+tags			字符串		麻辣，经典川菜，下饭神器			美食标签（用逗号分隔）
+longitude		浮点数		104.0668	地理经度				（核心产地）
+latitude		浮点数		30.5728	地理纬度				（核心产地）
+image_url		字符串		/images/foods/……				美食图片存储路径
+
