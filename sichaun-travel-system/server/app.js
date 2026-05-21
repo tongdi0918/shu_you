@@ -4,8 +4,12 @@ const cors = require('cors');
 const path = require('path');
 require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
-
 const app = express();
+const scenicRouter = require('./routes/scenic');
+const foodRouter = require('./routes/food');
+
+app.use('/api/scenic', scenicRouter);
+app.use('/api/food', foodRouter);
 
 // ✅ CORS 配置
 app.use(cors({
