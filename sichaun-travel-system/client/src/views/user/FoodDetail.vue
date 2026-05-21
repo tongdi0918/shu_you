@@ -1,167 +1,77 @@
-<!-- sichaun-travel-system/client/src/views/user/HistoryView.vue -->
 <template>
-  <div class="history-page">
-    <div class="page-header">
-      <h2>📜 浏览历史</h2>
-    </div>
-
-    <div v-if="loading" class="loading-container">
-      <el-icon class="is-loading" :size="32"><Loading /></el-icon>
-      <p>加载中...</p>
-    </div>
-
-    <el-empty v-else-if="historyList.length === 0" description="暂无浏览记录，快去探索吧~" />
-
-    <div v-else class="history-list">
-      <div
-        class="history-item"
-        v-for="item in historyList"
-        :key="item.id"
-        @click="goDetail(item)"
-      >
-        <img :src="item.item_image || '/placeholder.jpg'" class="item-img" />
-        <div class="item-info">
-          <div class="item-header">
-            <h3>{{ item.item_name }}</h3>
-            <el-tag :type="item.item_type === 'scenery' ? 'success' : 'danger'" size="small">
-              {{ item.item_type === 'scenery' ? '景区' : '美食' }}
-            </el-tag>
-          </div>
-          <p class="item-time">{{ formatTime(item.created_at) }}</p>
-        </div>
-        <el-icon><ArrowRight /></el-icon>
+  <div class="food-detail">
+    <div class="detail-header">
+      <h1>{{ food.name }}</h1>
+      <div class="detail-meta">
+        <span>💰 ¥{{ food.avg_price }}</span>
+        <span>⭐ {{ food.rating }}</span>
+        <span>📍 {{ food.city }}</span>
+        <span>🍽️ {{ food.category }}</span>
       </div>
+    </div>
+    
+    <div class="detail-image" v-if="food.image_url">
+      <img :src="food.image_url" :alt="food.name" />
+    </div>
+    
+    <div class="detail-description">
+      <h3>美食介绍</h3>
+      <p>{{ food.description }}</p>
+    </div>
+    
+    <div class="detail-back">
+      <button @click="$router.back()">返回列表</button>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { ElMessage } from 'element-plus';
+import { useRoute } from 'vue-router';
+import axios from 'axios';
 
-const router = useRouter();
-const historyList = ref([]);
-const loading = ref(true);
+const route = useRoute();
+const food = ref({});
 
-const fetchHistory = async () => {
-  const token = localStorage.getItem('token');
-  if (!token) {
-    ElMessage.warning('请先登录');
-    router.push('/login');
-    return;
-  }
+onMounted(async () => {
   try {
-    const res = await fetch('/api/user/history', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    const data = await res.json();
-    if (data.code === 200) {
-      historyList.value = data.data || [];
-    } else {
-      ElMessage.error(data.msg || '获取浏览历史失败');
-    }
-  } catch (e) {
-    ElMessage.error('网络错误');
-  } finally {
-    loading.value = false;
+    const id = route.params.id;
+    const response = await axios.get(`/api/food/${id}`);
+    food.value = response.data;
+  } catch (error) {
+    console.error('获取美食详情失败', error);
   }
-};
-
-const goDetail = (item) => {
-  if (item.item_type === 'scenery') {
-    router.push(`/scenic/${item.item_id}`);
-  } else {
-    router.push(`/food/${item.item_id}`);
-  }
-};
-
-const formatTime = (timeStr) => {
-  if (!timeStr) return '';
-  const d = new Date(timeStr);
-  return d.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-};
-
-onMounted(fetchHistory);
+});
 </script>
 
 <style scoped>
-.history-page {
-  min-height: 100vh;
-  background: #f5f5f5;
-  padding-bottom: 20px;
-}
-
-.page-header {
-  background: linear-gradient(135deg, #409EFF, #67C23A);
-  color: white;
+.food-detail {
+  max-width: 800px;
+  margin: 0 auto;
   padding: 20px;
 }
-
-.page-header h2 {
-  margin: 0;
-  font-size: 20px;
+.detail-header h1 {
+  font-size: 28px;
+  margin-bottom: 16px;
 }
-
-.loading-container {
+.detail-meta {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 60px 0;
-  color: #909399;
+  gap: 20px;
+  color: #666;
+  margin-bottom: 20px;
 }
-
-.history-list {
-  padding: 12px;
-}
-
-.history-item {
-  background: white;
-  border-radius: 12px;
-  padding: 12px;
-  margin-bottom: 10px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-  cursor: pointer;
-}
-
-.item-img {
-  width: 60px;
-  height: 60px;
-  border-radius: 8px;
+.detail-image img {
+  width: 100%;
+  max-height: 400px;
   object-fit: cover;
+  border-radius: 8px;
 }
-
-.item-info {
-  flex: 1;
-  min-width: 0;
+.detail-description {
+  margin: 20px 0;
+  line-height: 1.8;
 }
-
-.item-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.item-header h3 {
-  margin: 0;
-  font-size: 15px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.item-time {
-  font-size: 12px;
-  color: #909399;
+.detail-back button {
+  padding: 8px 20px;
+  cursor: pointer;
 }
 </style>

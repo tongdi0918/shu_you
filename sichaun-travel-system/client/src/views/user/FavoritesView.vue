@@ -1,252 +1,90 @@
-<!-- sichaun-travel-system/client/src/views/user/FavoritesView.vue -->
+<!-- client/src/views/user/FavoritesView.vue -->
 <template>
-  <div class="favorites-page">
-    <div class="page-header">
-      <h2>❤️ 我的收藏</h2>
-    </div>
-
-    <!-- 加载中 -->
-    <div v-if="loading" class="loading-container">
-      <el-icon class="is-loading" :size="32"><Loading /></el-icon>
-      <p>加载中...</p>
-    </div>
-
-    <!-- 空状态 -->
-    <el-empty v-else-if="favorites.length === 0" description="还没有收藏哦，快去看看吧~" />
-
-    <!-- 收藏列表 -->
-    <div v-else class="favorites-list">
-      <div 
-        class="favorite-item" 
-        v-for="item in favorites" 
-        :key="item.fav_id"
-        @click="goDetail(item)"
-      >
-        <img 
-          :src="item.item_image || '/placeholder.jpg'" 
-          :alt="item.item_name"
-          class="fav-image"
-        />
-        <div class="fav-info">
-          <div class="fav-header">
-            <h3>{{ item.item_name }}</h3>
-            <el-tag :type="item.item_type === 'scenery' ? 'success' : 'danger'" size="small">
-              {{ item.item_type === 'scenery' ? '景区' : '美食' }}
+  <div class="favorites-container">
+    <AppHeader />
+    <div class="content">
+      <h2>我的收藏</h2>
+      <el-tabs v-model="activeTab" @tab-change="loadData">
+        <el-tab-pane label="全部" name="all" />
+        <el-tab-pane label="景区" name="scenery" />
+        <el-tab-pane label="美食" name="food" />
+      </el-tabs>
+      <el-table :data="favorites" v-loading="loading" empty-text="暂无收藏">
+        <el-table-column prop="item_name" label="名称" />
+        <el-table-column prop="item_type" label="类型" width="80">
+          <template #default="{ row }">
+            <el-tag :type="row.item_type === 'scenery' ? 'success' : 'warning'" size="small">
+              {{ row.item_type === 'scenery' ? '景区' : '美食' }}
             </el-tag>
-          </div>
-          <p class="fav-city">{{ item.item_city }}</p>
-          <div class="fav-meta">
-            <span class="fav-rating">⭐ {{ item.item_rating }}</span>
-            <span class="fav-price">
-              {{ item.item_type === 'scenery' ? `¥${item.item_price}` : `¥${item.item_price}/人` }}
-            </span>
-          </div>
-          <p class="fav-time">收藏于 {{ formatTime(item.fav_time) }}</p>
-        </div>
-        <el-button 
-          type="danger" 
-          size="small" 
-          circle 
-          @click.stop="removeFavorite(item)"
-          :loading="removingId === item.fav_id"
-        >
-          <el-icon><Delete /></el-icon>
-        </el-button>
-      </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="item_city" label="城市" width="120" />
+        <el-table-column prop="item_rating" label="评分" width="80" />
+        <el-table-column prop="fav_time" label="收藏时间" width="180">
+          <template #default="{ row }">
+            {{ new Date(row.fav_time).toLocaleString() }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="100">
+          <template #default="{ row }">
+            <el-button type="danger" size="small" @click="handleDelete(row)">取消收藏</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { getFavorites, deleteFavorite } from '../../api/user';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import AppHeader from '../../components/common/AppHeader.vue';
 
-const router = useRouter();
 const favorites = ref([]);
-const loading = ref(true);
-const removingId = ref(null);
+const loading = ref(false);
+const activeTab = ref('all');
 
-// 加载收藏列表
-const loadFavorites = async () => {
+const loadData = async () => {
   loading.value = true;
-  const token = localStorage.getItem('token');
-  if (!token) {
-    ElMessage.warning('请先登录');
-    router.push('/login');
-    return;
-  }
-
   try {
-    const response = await fetch('/api/user/favorites', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    const result = await response.json();
-    if (result.code === 200) {
-      favorites.value = result.data || [];
-    }
-  } catch (error) {
-    ElMessage.error('获取收藏列表失败');
+    const params = activeTab.value !== 'all' ? { type: activeTab.value } : {};
+    const res = await getFavorites(params);
+    favorites.value = res.data || [];
+  } catch (e) {
+    ElMessage.error('加载收藏失败');
   } finally {
     loading.value = false;
   }
 };
 
-// 跳转详情
-const goDetail = (item) => {
-  if (item.item_type === 'scenery') {
-    router.push(`/scenic/${item.item_id}`);
-  } else {
-    router.push(`/food/${item.item_id}`);
-  }
-};
-
-// 取消收藏
-const removeFavorite = async (item) => {
+const handleDelete = async (row) => {
   try {
-    await ElMessageBox.confirm(`确定取消收藏「${item.item_name}」吗？`, '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    });
-  } catch {
-    return;
-  }
-
-  removingId.value = item.fav_id;
-  const token = localStorage.getItem('token');
-  
-  try {
-    const response = await fetch(
-      `/api/user/favorites/${item.item_id}?type=${item.item_type}`,
-      {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      }
-    );
-    const result = await response.json();
-    if (result.code === 200) {
-      favorites.value = favorites.value.filter(f => f.fav_id !== item.fav_id);
-      ElMessage.success('已取消收藏');
-    }
-  } catch (error) {
-    ElMessage.error('操作失败');
-  } finally {
-    removingId.value = null;
+    await ElMessageBox.confirm('确定取消收藏？', '提示', { type: 'warning' });
+    await deleteFavorite(row.fav_id);
+    ElMessage.success('已取消收藏');
+    loadData();
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error('操作失败');
   }
 };
 
-// 格式化时间
-const formatTime = (timeStr) => {
-  if (!timeStr) return '';
-  const date = new Date(timeStr);
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-};
-
-onMounted(() => {
-  loadFavorites();
-});
+onMounted(loadData);
 </script>
 
 <style scoped>
-.favorites-page {
+.favorites-container {
   min-height: 100vh;
-  background: #f5f5f5;
-  padding-bottom: 20px;
+  background: #f5f7fa;
 }
 
-.page-header {
-  background: linear-gradient(135deg, #E44D26, #FF6B6B);
-  color: white;
-  padding: 20px;
+.content {
+  max-width: 1000px;
+  margin: 40px auto;
+  padding: 0 20px;
 }
 
-.page-header h2 {
-  margin: 0;
-  font-size: 20px;
-}
-
-.loading-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 0;
-  color: #909399;
-}
-
-.favorites-list {
-  padding: 12px;
-}
-
-.favorite-item {
-  background: white;
-  border-radius: 12px;
-  padding: 12px;
-  margin-bottom: 10px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-  cursor: pointer;
-  transition: transform 0.2s;
-}
-
-.favorite-item:hover {
-  transform: translateX(4px);
-}
-
-.fav-image {
-  width: 80px;
-  height: 80px;
-  border-radius: 8px;
-  object-fit: cover;
-  flex-shrink: 0;
-}
-
-.fav-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.fav-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.fav-header h3 {
-  margin: 0;
-  font-size: 15px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.fav-city {
-  font-size: 12px;
-  color: #909399;
-  margin: 4px 0;
-}
-
-.fav-meta {
-  display: flex;
-  gap: 16px;
-  font-size: 13px;
-}
-
-.fav-rating { color: #F57C00; }
-.fav-price { color: #E44D26; font-weight: 600; }
-
-.fav-time {
-  font-size: 11px;
-  color: #C0C4CC;
-  margin-top: 4px;
+.content h2 {
+  margin-bottom: 20px;
 }
 </style>
