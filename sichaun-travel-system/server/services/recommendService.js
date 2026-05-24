@@ -2,153 +2,170 @@
 const pool = require('../config/db');
 
 /**
- * 基于用户行为的协同过滤推荐（增强版：综合收藏和浏览次数）
- * 1. 构建用户-物品评分矩阵
- * 2. 计算用户间余弦相似度
- * 3. 加权预测目标用户对未交互物品的评分
+ * ★ 修改：增强版用户推荐服务
+ * 根据用户的收藏记录和浏览历史，使用协同过滤思想进行推荐
  */
-async function getUserBasedRecommendations(userId, itemType, topN = 10) {
-  // 获取所有用户行为（包含 view 和 bookmark）
-  const [behaviors] = await pool.query(
-    `SELECT user_id, item_id, action, rating FROM user_behaviors WHERE item_type=?`,
-    [itemType]
-  );
-  
-  if (behaviors.length === 0) return await getPopularItems(itemType, topN);
-
-  // 构建评分矩阵：view=1分, bookmark=3分, rate=实际评分, like=2分
-  const userRatings = new Map();
-  for (const b of behaviors) {
-    if (!userRatings.has(b.user_id)) userRatings.set(b.user_id, new Map());
+async function getUserBasedRecommendations(userId, type, limit = 10) {
+  try {
+    const table = type === 'scenery' ? 'sceneries' : 'foods';
+    const behaviorTable = 'user_behaviors';
     
-    let score = 0;
-    switch (b.action) {
-      case 'view': score = 1; break;
-      case 'like': score = 2; break;
-      case 'bookmark': score = 3; break;
-      case 'rate': score = b.rating || 3; break;
-      default: score = 0;
-    }
-    
-    const existing = userRatings.get(b.user_id).get(b.item_id) || 0;
-    userRatings.get(b.user_id).set(b.item_id, existing + score); // 累加分数
-  }
-
-  const userIds = [...userRatings.keys()];
-  const targetRated = userRatings.get(userId) || new Map();
-
-  // 余弦相似度
-  const similarities = [];
-  for (const otherId of userIds) {
-    if (otherId === userId) continue;
-    const sim = cosineSimilarity(
-      Object.fromEntries(targetRated),
-      Object.fromEntries(userRatings.get(otherId))
+    // 1. 获取用户收藏和浏览的物品ID
+    const [userBehaviors] = await pool.query(
+      `SELECT item_id, action, COUNT(*) as count 
+       FROM ${behaviorTable} 
+       WHERE user_id = ? AND item_type = ? 
+       AND action IN ('like', 'bookmark', 'view')
+       GROUP BY item_id, action
+       ORDER BY count DESC`,
+      [userId, type]
     );
-    similarities.push({ userId: otherId, similarity: sim });
-  }
-  similarities.sort((a, b) => b.similarity - a.similarity);
 
-  // 取Top K 相似用户
-  const K = 20;
-  const topSimilar = similarities.slice(0, K);
+    // 2. 如果用户有行为记录，获取相似物品
+    if (userBehaviors.length > 0) {
+      const likedIds = userBehaviors
+        .filter(b => b.action === 'like' || b.action === 'bookmark')
+        .map(b => b.item_id);
+      
+      const viewedIds = userBehaviors
+        .filter(b => b.action === 'view')
+        .map(b => b.item_id);
 
-  // 预测评分
-  const predictions = new Map();
-  for (const { userId: simUserId, similarity } of topSimilar) {
-    if (similarity <= 0) continue;
-    const simUserRatings = userRatings.get(simUserId);
-    for (const [itemId, rating] of simUserRatings) {
-      if (targetRated.has(itemId)) continue;
-      const prev = predictions.get(itemId) || { weightedSum: 0, simSum: 0 };
-      predictions.set(itemId, {
-        weightedSum: prev.weightedSum + similarity * rating,
-        simSum: prev.simSum + similarity
-      });
+      // 获取用户喜欢物品的标签
+      if (likedIds.length > 0) {
+        const [likedItems] = await pool.query(
+          `SELECT id, tags, city FROM ${table} WHERE id IN (?)`,
+          [likedIds]
+        );
+
+        // 提取标签和城市偏好
+        const allTags = new Set();
+        const cities = new Set();
+        likedItems.forEach(item => {
+          if (item.tags) {
+            item.tags.split(',').forEach(tag => allTags.add(tag.trim()));
+          }
+          if (item.city) cities.add(item.city);
+        });
+
+        // 基于标签和城市推荐相似物品
+        let query = `SELECT * FROM ${table} WHERE id NOT IN (?)`;
+        const params = [likedIds.concat(viewedIds)];
+        
+        if (allTags.size > 0) {
+          const tagConditions = Array.from(allTags).map(() => 'tags LIKE ?');
+          query += ` AND (${tagConditions.join(' OR ')})`;
+          Array.from(allTags).forEach(tag => params.push(`%${tag}%`));
+        }
+        
+        if (cities.size > 0) {
+          const cityConditions = Array.from(cities).map(() => 'city = ?');
+          query += ` OR (${cityConditions.join(' OR ')})`;
+          Array.from(cities).forEach(city => params.push(city));
+        }
+        
+        query += ` ORDER BY rating DESC LIMIT ?`;
+        params.push(limit);
+
+        const [recommendations] = await pool.query(query, params);
+        
+        // 计算预测评分
+        return recommendations.map(item => ({
+          ...item,
+          predictedRating: calculatePredictedRating(item, likedItems, userBehaviors)
+        }));
+      }
     }
-  }
 
-  // 排序
-  const result = [...predictions.entries()]
-    .map(([itemId, v]) => ({
-      itemId,
-      predictedRating: v.weightedSum / v.simSum
-    }))
-    .sort((a, b) => b.predictedRating - a.predictedRating)
-    .slice(0, topN);
-
-  // 填充物品详情
-  const table = itemType === 'scenery' ? 'sceneries' : 'foods';
-  if (result.length === 0) return await getPopularItems(itemType, topN);
-  
-  const ids = result.map(r => r.itemId);
-  const [items] = await pool.query(`SELECT * FROM ${table} WHERE id IN (?)`, [ids]);
-  
-  return items.map(item => {
-    const pred = result.find(r => r.itemId === item.id);
-    return {
+    // 3. 冷启动：返回热门物品
+    const [popular] = await pool.query(
+      `SELECT * FROM ${table} ORDER BY rating DESC LIMIT ?`,
+      [limit]
+    );
+    
+    return popular.map(item => ({
       ...item,
-      predictedRating: pred ? Math.round(pred.predictedRating * 20) : 0 // 转换为百分比
-    };
-  });
-}
-
-function cosineSimilarity(ratingsA, ratingsB) {
-  let dot = 0, normA = 0, normB = 0;
-  const allItems = new Set([...Object.keys(ratingsA), ...Object.keys(ratingsB)]);
-  for (const item of allItems) {
-    const a = ratingsA[item] || 0, b = ratingsB[item] || 0;
-    dot += a * b;
-    normA += a * a;
-    normB += b * b;
+      predictedRating: Math.round(item.rating * 10) || 80
+    }));
+  } catch (e) {
+    console.error(`推荐服务错误 (${type}):`, e);
+    // 出错时返回空数组，不中断流程
+    return [];
   }
-  if (normA === 0 || normB === 0) return 0;
-  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
-}
-
-// 冷启动：返回热门物品
-async function getPopularItems(itemType, topN) {
-  const table = itemType === 'scenery' ? 'sceneries' : 'foods';
-  const [items] = await pool.query(
-    `SELECT * FROM ${table} ORDER BY rating DESC LIMIT ?`,
-    [topN]
-  );
-  return items;
 }
 
 /**
- * 新增：基于收藏和浏览次数的行程规划推荐
- * 返回交替排列的景点和美食列表
+ * ★ 新增：计算预测评分
  */
-async function getItineraryRecommendations(userId, topN = 6) {
-  // 获取用户收藏的景点和美食
-  const [favorites] = await pool.query(
-    `SELECT item_type, item_id FROM favorites WHERE user_id = ? ORDER BY created_at DESC`,
-    [userId]
-  );
-
-  // 获取用户浏览最多的景点和美食
-  const [browseHistory] = await pool.query(
-    `SELECT item_type, item_id, COUNT(*) as view_count 
-     FROM browse_history WHERE user_id = ? 
-     GROUP BY item_type, item_id 
-     ORDER BY view_count DESC LIMIT 20`,
-    [userId]
-  );
-
-  // 综合推荐：优先推荐用户收藏的类型
-  const [sceneryRec] = await getUserBasedRecommendations(userId, 'scenery', 3);
-  const [foodRec] = await getUserBasedRecommendations(userId, 'food', 3);
-
-  // 交替排列：景点 → 美食 → 景点 → 美食
-  const itinerary = [];
-  const maxLen = Math.max(sceneryRec?.length || 0, foodRec?.length || 0);
-  for (let i = 0; i < maxLen; i++) {
-    if (sceneryRec?.[i]) itinerary.push({ ...sceneryRec[i], type: 'scenery' });
-    if (foodRec?.[i]) itinerary.push({ ...foodRec[i], type: 'food' });
+function calculatePredictedRating(item, likedItems, userBehaviors) {
+  let score = 70; // 基础分
+  
+  // 与喜欢物品的标签相似度加分
+  if (item.tags && likedItems.length > 0) {
+    const itemTags = item.tags.split(',');
+    likedItems.forEach(liked => {
+      if (liked.tags) {
+        const likedTags = liked.tags.split(',');
+        const commonTags = itemTags.filter(t => likedTags.includes(t));
+        score += commonTags.length * 5;
+      }
+    });
   }
-
-  return itinerary;
+  
+  // 基于评分加分
+  if (item.rating) {
+    score += (item.rating / 5) * 10;
+  }
+  
+  return Math.min(Math.round(score), 99);
 }
 
-module.exports = { getUserBasedRecommendations, getItineraryRecommendations };
+/**
+ * ★ 新增：生成智能行程规划
+ */
+async function generateSmartItinerary(userId) {
+  try {
+    const [sceneryRecs] = await Promise.all([
+      getUserBasedRecommendations(userId, 'scenery', 5)
+    ]);
+    
+    const [foodRecs] = await Promise.all([
+      getUserBasedRecommendations(userId, 'food', 5)
+    ]);
+
+    // 交替排列景区和美食
+    const itinerary = [];
+    const maxLen = Math.max(sceneryRecs.length, foodRecs.length);
+    
+    for (let i = 0; i < maxLen; i++) {
+      if (i < sceneryRecs.length) {
+        itinerary.push({
+          id: sceneryRecs[i].id,
+          name: sceneryRecs[i].name,
+          city: sceneryRecs[i].city,
+          type: 'scenery',
+          predictedRating: sceneryRecs[i].predictedRating
+        });
+      }
+      if (i < foodRecs.length) {
+        itinerary.push({
+          id: foodRecs[i].id,
+          name: foodRecs[i].name,
+          city: foodRecs[i].city,
+          type: 'food',
+          predictedRating: foodRecs[i].predictedRating
+        });
+      }
+    }
+
+    return itinerary;
+  } catch (e) {
+    console.error('生成行程规划失败:', e);
+    return [];
+  }
+}
+
+module.exports = {
+  getUserBasedRecommendations,
+  generateSmartItinerary
+};

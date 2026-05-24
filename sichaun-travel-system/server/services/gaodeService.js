@@ -1,33 +1,38 @@
 // server/services/gaodeService.js
 const axios = require('axios');
 
-const AMAP_KEY = process.env.AMAP_KEY || 'YOUR_AMAP_KEY_HERE';
+// ★ 修改：使用环境变量或配置管理 Key
+const AMAP_KEY = process.env.AMAP_KEY || '68ff2afb0b6d70f0a6970b71737729a6';
 
 /**
- * 智能路线规划（返回简单的景点排列）
+ * 智能路线规划（根据偏好筛选景区并排序）
  */
 async function smartRoutePlan(sceneries, options) {
-  const routes = [];
-  for (let i = 0; i < sceneries.length; i++) {
-    const scenic = sceneries[i];
-    routes.push({
-      day: Math.floor(i / 2) + 1,
-      order: i + 1,
-      type: 'scenery',
-      name: scenic.name,
-      city: scenic.city,
-      longitude: scenic.longitude,
-      latitude: scenic.latitude,
-      ticketPrice: scenic.ticket_price,
-      description: scenic.description
-    });
-  }
-  return routes;
+  const { origin, destination, days = 3, budget = 2000 } = options;
+  
+  // 按评分排序，取前N个景区作为途经点
+  const waypoints = sceneries
+    .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+    .slice(0, Math.min(days * 2, sceneries.length))
+    .map(s => ({
+      name: s.name,
+      city: s.city,
+      lng: s.longitude,
+      lat: s.latitude
+    }));
+
+  return {
+    origin,
+    destination,
+    waypoints,
+    days,
+    budget
+  };
 }
 
 /**
- * 获取路线详情（公里数、预估时间、高速路费）
- * 修正：使用正确的高德 REST API 域名 restapi.amap.com
+ * ★ 修改：获取路线详情（驾车路线规划）
+ * 使用高德地图驾车路径规划 API
  */
 async function getRouteDetail(origin, destination) {
   try {
@@ -36,91 +41,65 @@ async function getRouteDetail(origin, destination) {
         key: AMAP_KEY,
         origin: origin,
         destination: destination,
-        strategy: 0,
-        extensions: 'all'
+        strategy: 0,           // 速度优先
+        extensions: 'all'      // 返回详细信息
       }
     });
 
-    if (response.data.status === '1' && response.data.route && response.data.route.paths) {
-      const path = response.data.route.paths[0];
-      const distance = path.distance;      // 米
-      const duration = path.duration;      // 秒
-      const toll = path.tolls || 0;
-      const distanceKm = (distance / 1000).toFixed(1);
-      const fuelCost = Math.round(distanceKm * 0.08 * 8);
-
+    const data = response.data;
+    
+    if (data.status === '1' && data.route && data.route.paths && data.route.paths.length > 0) {
+      const path = data.route.paths[0];
       const steps = path.steps.map(step => ({
         instruction: step.instruction,
         distance: step.distance,
         duration: step.duration,
-        road: step.road || '',
-        tolls: step.tolls || 0
+        road: step.road || ''
       }));
 
       return {
-        distance: distance,
-        distanceKm: distanceKm,
-        duration: duration,
-        durationText: formatDuration(duration),
-        toll: toll,
-        fuelCost: fuelCost,
+        distanceKm: (path.distance / 1000).toFixed(1),
+        durationText: formatDuration(path.duration),
+        toll: path.tolls || 0,
+        fuelCost: Math.round(path.distance / 1000 * 0.7),
         steps: steps
       };
+    } else {
+      // ★ 修改：API 调用失败时返回模拟数据，而不是直接报错
+      console.warn('高德地图API返回异常，使用模拟数据:', data.info || '未知错误');
+      return getMockRouteDetail(origin, destination);
     }
-
-    // API 未返回数据时使用模拟数据
-    return getSimulatedRouteDetail(origin, destination);
   } catch (e) {
-    console.error('高德地图API调用失败:', e.message);
-    return getSimulatedRouteDetail(origin, destination);
+    console.error('获取路线详情失败，使用模拟数据:', e.message);
+    return getMockRouteDetail(origin, destination);
   }
 }
 
-function formatDuration(seconds) {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  if (hours > 0) return `${hours}小时${minutes}分钟`;
-  return `${minutes}分钟`;
-}
-
-function getSimulatedRouteDetail(origin, destination) {
-  const baseDistance = 150000;
-  const randomFactor = 0.8 + Math.random() * 0.4;
-  const distance = Math.round(baseDistance * randomFactor);
-  const duration = Math.round(distance / 1000 * 60 * 1.2);
-  const distanceKm = (distance / 1000).toFixed(1);
-  const toll = Math.round(parseFloat(distanceKm) * 0.5);
-  const fuelCost = Math.round(parseFloat(distanceKm) * 0.08 * 8);
-
+/**
+ * ★ 新增：当高德API不可用时返回模拟路线数据
+ */
+function getMockRouteDetail(origin, destination) {
   return {
-    distance: distance,
-    distanceKm: distanceKm,
-    duration: duration,
-    durationText: formatDuration(duration),
-    toll: toll,
-    fuelCost: fuelCost,
+    distanceKm: '280.5',
+    durationText: '3小时30分钟',
+    toll: 120,
+    fuelCost: 196,
     steps: [
-      {
-        instruction: `从${origin}出发`,
-        distance: distance * 0.3,
-        duration: duration * 0.3,
-        road: '城市道路'
-      },
-      {
-        instruction: '进入高速公路',
-        distance: distance * 0.5,
-        duration: duration * 0.4,
-        road: 'G5京昆高速',
-        tolls: toll
-      },
-      {
-        instruction: `抵达${destination}`,
-        distance: distance * 0.2,
-        duration: duration * 0.3,
-        road: '城市道路'
-      }
+      { instruction: `从${origin}出发`, distance: 0, duration: 0, road: '' },
+      { instruction: '沿G5京昆高速行驶', distance: 150000, duration: 5400, road: 'G5京昆高速' },
+      { instruction: '进入G93成渝环线高速', distance: 80000, duration: 3600, road: 'G93成渝环线高速' },
+      { instruction: `抵达${destination}`, distance: 50000, duration: 3600, road: '' }
     ]
   };
 }
 
-module.exports = { smartRoutePlan, getRouteDetail };
+function formatDuration(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return h > 0 ? `${h}小时${m}分钟` : `${m}分钟`;
+}
+
+module.exports = {
+  smartRoutePlan,
+  getRouteDetail
+};

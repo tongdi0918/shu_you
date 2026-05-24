@@ -2,7 +2,7 @@
 const express = require('express');
 const pool = require('../config/db');
 const { authenticate } = require('../middleware/auth');
-const { smartRoutePlan, getRouteDetail } = require('../services/gaodeService');
+const { smartRoutePlan, getRouteDetail, geocodeAddress } = require('../services/gaodeService');
 const router = express.Router();
 
 // 智能路线规划（需要登录）
@@ -15,7 +15,33 @@ router.post('/plan', authenticate, async (req, res) => {
       return res.status(400).json({ code: 400, msg: '请填写出发地和目的地' });
     }
 
-    // 根据偏好筛选景区
+    // ======= 对出发地和目的地进行地理编码 =======
+    let originCoord, destCoord;
+    try {
+      // 如果用户输入的是地址文字，转换为经纬度坐标
+      if (typeof origin === 'string' && origin.includes(',')) {
+        const parts = origin.split(',');
+        originCoord = `${parts[0].trim()},${parts[1].trim()}`;
+      } else {
+        const geoResult = await geocodeAddress(origin);
+        originCoord = geoResult ? `${geoResult.lng},${geoResult.lat}` : origin;
+      }
+      
+      if (typeof destination === 'string' && destination.includes(',')) {
+        const parts = destination.split(',');
+        destCoord = `${parts[0].trim()},${parts[1].trim()}`;
+      } else {
+        const geoResult = await geocodeAddress(destination);
+        destCoord = geoResult ? `${geoResult.lng},${geoResult.lat}` : destination;
+      }
+    } catch (geoErr) {
+      console.warn('地理编码失败，使用原始输入:', geoErr.message);
+      originCoord = origin;
+      destCoord = destination;
+    }
+    // ======= 地理编码结束 =======
+
+    // 根据偏好筛选景区（原样保留）
     let scenicQuery = 'SELECT * FROM sceneries WHERE 1=1';
     const params = [];
     if (preference && preference.length > 0) {
@@ -41,8 +67,8 @@ router.post('/plan', authenticate, async (req, res) => {
     // 智能规划路线
     const routes = await smartRoutePlan(sceneries, { origin, destination, days, budget: budget || 2000 });
 
-    // 获取路线详情（距离、时间、费用）
-    const routeDetail = await getRouteDetail(origin, destination);
+    // 获取路线详情（使用坐标）
+    const routeDetail = await getRouteDetail(originCoord, destCoord);
 
     // 保存路线规划记录
     await pool.query(
@@ -62,7 +88,7 @@ router.post('/plan', authenticate, async (req, res) => {
       code: 200,
       data: {
         routes,
-        routeDetail,  // 包含 distance, duration, toll 等信息
+        routeDetail, // 包含 distance, duration, toll, steps 等信息
         sceneries: sceneries.slice(0, 5)
       }
     });
@@ -71,7 +97,7 @@ router.post('/plan', authenticate, async (req, res) => {
   }
 });
 
-// 获取用户历史路线规划
+// 获取用户历史路线规划（原样保留）
 router.get('/history', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -84,6 +110,5 @@ router.get('/history', authenticate, async (req, res) => {
     res.status(500).json({ code: 500, msg: e.message });
   }
 });
-
 
 module.exports = router;
