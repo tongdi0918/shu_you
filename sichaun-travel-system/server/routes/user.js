@@ -134,4 +134,75 @@ router.post('/history', authenticate, async (req, res) => {
   }
 });
 
+// ===== 用户成就（打卡） =====
+// 获取用户成就列表
+router.get('/achievements', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    // 用 action='bookmark' 并额外记录 is_visit=1 表示实地到访
+    const [sceneries] = await pool.query(
+      `SELECT DISTINCT item_id FROM user_behaviors 
+       WHERE user_id = ? AND item_type = 'scenery' AND action = 'bookmark' AND is_visit = 1`,
+      [userId]
+    );
+    const [foods] = await pool.query(
+      `SELECT DISTINCT item_id FROM user_behaviors 
+       WHERE user_id = ? AND item_type = 'food' AND action = 'bookmark' AND is_visit = 1`,
+      [userId]
+    );
+    res.json({
+      code: 200,
+      data: {
+        sceneries: sceneries.map(r => r.item_id),
+        foods: foods.map(r => r.item_id)
+      }
+    });
+  } catch (e) {
+    res.status(500).json({ code: 500, msg: e.message });
+  }
+});
+
+// 切换成就打卡状态
+router.post('/achievements/toggle', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { itemType, itemId, visited } = req.body;
+
+    if (!itemType || !itemId) {
+      return res.status(400).json({ code: 400, msg: '参数不完整' });
+    }
+
+    if (visited) {
+      // 检查是否已有 bookmark 记录
+      const [exist] = await pool.query(
+        'SELECT id FROM user_behaviors WHERE user_id=? AND item_type=? AND item_id=? AND action=?',
+        [userId, itemType, itemId, 'bookmark']
+      );
+      if (exist.length > 0) {
+        // 更新标记为到访
+        await pool.query(
+          'UPDATE user_behaviors SET is_visit=1 WHERE id=?',
+          [exist[0].id]
+        );
+      } else {
+        // 新增一条 bookmark 并标记到访
+        await pool.query(
+          'INSERT INTO user_behaviors (user_id, item_type, item_id, action, is_visit) VALUES (?,?,?,?,1)',
+          [userId, itemType, itemId, 'bookmark']
+        );
+      }
+      res.json({ code: 200, msg: '打卡成功' });
+    } else {
+      // 取消打卡：将 is_visit 设为 0，但不删除记录
+      await pool.query(
+        'UPDATE user_behaviors SET is_visit=0 WHERE user_id=? AND item_type=? AND item_id=? AND action=?',
+        [userId, itemType, itemId, 'bookmark']
+      );
+      res.json({ code: 200, msg: '已取消打卡' });
+    }
+  } catch (e) {
+    res.status(500).json({ code: 500, msg: e.message });
+  }
+});
+
 module.exports = router;
