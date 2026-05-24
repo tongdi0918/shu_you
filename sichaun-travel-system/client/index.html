@@ -1,14 +1,14 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>蜀游智行</title>
-    <!-- ⚠️ 新增：高德地图安全密钥配置，必须放在高德 JS 加载之前 -->
+    <!-- 引入高德地图 JS SDK -->
     <script type="text/javascript">
-      window._AMapSecurityConfig = {
-        securityJsCode: '你的高德安全密钥',
+        window._AMapSecurityConfig = {
+        securityJsCode: '2a3eb8a9e18f098ec82ab143abf3e928', // 从高德控制台获取
       }
     </script>
   </head>
