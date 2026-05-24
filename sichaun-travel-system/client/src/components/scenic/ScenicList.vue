@@ -1,6 +1,14 @@
-<!-- client/src/components/scenic/ScenicList.vue -->
+<!-- 
+client/src/components/scenic/ScenicList.vue 
+-->
 <template>
   <div class="scenic-list">
+    <!-- 景区卡片组顶部的刷新按钮（新增） -->
+    <div class="list-header">
+      <el-button type="primary" size="small" @click="refresh" :loading="loading">
+        🔄 刷新景区
+      </el-button>
+    </div>
     <el-row :gutter="20">
       <el-col v-for="item in sceneries" :key="item.id" :xs="24" :sm="12" :md="8" :lg="6">
         <ScenicCard :scenic="item" />
@@ -33,5 +41,22 @@ const loadData = async () => {
   }
 };
 
+// ★ 新增：暴露 refresh 方法供父组件或按钮调用
+const refresh = () => {
+  loadData();
+};
+
 onMounted(loadData);
+
+// ★ 新增：将 refresh 暴露给父组件
+defineExpose({ refresh });
 </script>
+
+<style scoped>
+/* ★ 新增：列表头部样式 */
+.list-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+</style>

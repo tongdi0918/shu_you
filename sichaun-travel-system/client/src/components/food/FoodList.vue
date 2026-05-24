@@ -1,6 +1,14 @@
-<!-- client/src/components/food/FoodList.vue -->
+<!-- 
+client/src/components/food/FoodList.vue 
+-->
 <template>
   <div class="food-list">
+    <!-- 美食卡片组顶部的刷新按钮（新增） -->
+    <div class="list-header">
+      <el-button type="primary" size="small" @click="refresh" :loading="loading">
+        🔄 刷新美食
+      </el-button>
+    </div>
     <el-row :gutter="20">
       <el-col v-for="item in foods" :key="item.id" :xs="24" :sm="12" :md="8" :lg="6">
         <FoodCard :food="item" />
@@ -33,5 +41,22 @@ const loadData = async () => {
   }
 };
 
+// ★ 新增：暴露 refresh 方法
+const refresh = () => {
+  loadData();
+};
+
 onMounted(loadData);
+
+// ★ 新增：将 refresh 暴露给父组件
+defineExpose({ refresh });
 </script>
+
+<style scoped>
+/* ★ 新增：列表头部样式 */
+.list-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+</style>
