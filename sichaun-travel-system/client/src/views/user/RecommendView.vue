@@ -1,7 +1,7 @@
 <template>
   <div class="recommend-page">
     <div class="recommend-container">
-      <h2 class="page-title">🧠 为您量身定制的四川旅行推荐</h2>
+      <h2 class="page-title">🧠 为您量身定制的四川旅行路线</h2>
       <p class="page-subtitle">基于协同过滤算法，根据您的历史浏览与收藏偏好智能推荐</p>
 
       <!-- 加载中 -->
@@ -84,9 +84,10 @@
       </div>
 
       <!-- 操作按钮 -->
-      <div class="action-bar" v-if="itinerary.length > 0">
-        <el-button type="primary" size="large" @click="generateRoute">🗺️ 根据推荐生成路线</el-button>
-        <el-button size="large" @click="refreshRecommend">🔄 刷新推荐</el-button>
+      <div class="action-bar" v-if="!loading">
+        <el-button type="primary" size="large" @click="generateRoute" v-if="itinerary.length > 0">🗺️ 根据推荐生成路线</el-button>
+        <!-- ★ 修改：刷新推荐按钮始终显示，添加 loading 状态 -->
+        <el-button size="large" @click="refreshRecommend" :loading="refreshing">🔄 刷新推荐</el-button>
       </div>
     </div>
   </div>
@@ -97,11 +98,14 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 import { getUserRecommend, getPopularRecommend } from '@/api/recommend'
+import { ElMessage } from 'element-plus'
 
 const router = useRouter()
 const userStore = useUserStore()
 
 const loading = ref(true)
+// ★ 新增：刷新中状态
+const refreshing = ref(false)
 const recommendScenery = ref([])
 const recommendFood = ref([])
 const itinerary = ref([])
@@ -114,6 +118,12 @@ async function loadRecommend() {
       const data = res.data || res
       recommendScenery.value = data.scenery || []
       recommendFood.value = data.food || []
+      // ★ 新增：使用服务端返回的行程规划
+      if (data.itinerary && data.itinerary.length > 0) {
+        itinerary.value = data.itinerary
+      } else {
+        generateItinerary()
+      }
     } else {
       const [sceneryRes, foodRes] = await Promise.all([
         getPopularRecommend({ type: 'scenery', limit: 6 }),
@@ -121,32 +131,56 @@ async function loadRecommend() {
       ])
       recommendScenery.value = sceneryRes.data || sceneryRes || []
       recommendFood.value = foodRes.data || foodRes || []
+      generateItinerary()
     }
-    generateItinerary()
   } catch (e) {
     console.error('加载推荐失败', e)
+    ElMessage.error('加载推荐失败，请稍后重试')
   }
   loading.value = false
 }
 
 function generateItinerary() {
+  // ★ 修改：改进行程生成逻辑，交替排列景区和美食
   const plan = []
-  const sceneries = recommendScenery.value.slice(0, 3)
-  const foods = recommendFood.value.slice(0, 3)
+  const sceneries = [...recommendScenery.value]
+  const foods = [...recommendFood.value]
+  
+  // 按评分排序
+  sceneries.sort((a, b) => (b.rating || 0) - (a.rating || 0))
+  foods.sort((a, b) => (b.rating || 0) - (a.rating || 0))
+  
+  // 交替排列：景点-美食-景点-美食...
   const maxLen = Math.max(sceneries.length, foods.length)
   for (let i = 0; i < maxLen; i++) {
-    if (sceneries[i]) plan.push({ ...sceneries[i], type: 'scenery' })
-    if (foods[i]) plan.push({ ...foods[i], type: 'food' })
+    if (i < sceneries.length) {
+      plan.push({ ...sceneries[i], type: 'scenery' })
+    }
+    if (i < foods.length) {
+      plan.push({ ...foods[i], type: 'food' })
+    }
   }
-  itinerary.value = plan
+  
+  itinerary.value = plan.length > 0 ? plan.slice(0, 8) : []
 }
 
 function generateRoute() {
   router.push('/route-plan')
 }
 
-function refreshRecommend() {
-  loadRecommend()
+// ★ 修改：完善刷新推荐功能
+async function refreshRecommend() {
+  if (refreshing.value) return
+  refreshing.value = true
+  try {
+    // 重新加载数据
+    await loadRecommend()
+    ElMessage.success('推荐已刷新')
+  } catch (e) {
+    ElMessage.error('刷新失败，请稍后重试')
+  } finally {
+    refreshing.value = false
+  }
 }
 
 onMounted(() => {

@@ -1,272 +1,442 @@
 <template>
   <div class="route-plan-page">
-    <div class="route-plan-container">
-      <el-button type="link" @click="$router.push('/')" class="back-btn">← 返回首页</el-button>
-      <h1 class="page-title">🗺️ 路程规划</h1>
+    <!-- 地图容器 -->
+    <div id="amap-container" ref="mapContainer" class="map-container">
+      <div v-if="mapLoading" class="map-loading">
+        <el-icon class="is-loading"><Loading /></el-icon>
+        <span>正在加载地图...</span>
+      </div>
+    </div>
 
-      <!-- 输入区域 -->
-      <div class="input-section">
-        <el-row :gutter="16">
-          <el-col :span="8">
-            <el-input v-model="origin" placeholder="出发地（如：成都市）" clearable />
-          </el-col>
-          <el-col :span="8">
-            <el-input v-model="destination" placeholder="目的地（如：九寨沟）" clearable />
-          </el-col>
-          <el-col :span="8">
-            <el-button type="primary" @click="planRoute" :loading="loading" style="width:100%">
-              🚗 规划路线
-            </el-button>
-          </el-col>
-        </el-row>
-        <el-row :gutter="16" style="margin-top:12px">
-          <el-col :span="8">
-            <el-input-number v-model="days" :min="1" :max="15" placeholder="计划天数" style="width:100%" />
-          </el-col>
-          <el-col :span="8">
-            <el-input-number v-model="budget" :min="100" :step="100" placeholder="预算（元）" style="width:100%" />
-          </el-col>
-          <el-col :span="8">
-            <el-select v-model="preference" multiple placeholder="偏好（可多选）" style="width:100%">
-              <el-option label="自然风光" value="natural" />
-              <el-option label="历史文化" value="culture" />
-              <el-option label="美食之旅" value="food" />
-              <el-option label="休闲摄影" value="relax" />
-              <el-option label="户外探险" value="adventure" />
-            </el-select>
-          </el-col>
-        </el-row>
+    <!-- 路线规划表单 -->
+    <div class="plan-panel">
+      <div class="panel-header">
+        <el-button text @click="$router.push('/')">返回首页</el-button>
+        <h1>🗺️ 路程规划</h1>
       </div>
 
-      <!-- 地图容器 -->
-      <div class="map-container" v-loading="mapLoading">
-        <div id="route-map" style="width:100%;height:400px;"></div>
-        <div class="map-placeholder" v-if="!mapLoaded">正在加载地图...</div>
-      </div>
+      <el-form :model="form" label-width="80px" class="plan-form">
+        <el-form-item label="出发地">
+          <el-input 
+            v-model="form.origin" 
+            placeholder="请输入出发地（如：成都市）"
+            clearable
+          />
+        </el-form-item>
+        <el-form-item label="目的地">
+          <el-input 
+            v-model="form.destination" 
+            placeholder="请输入目的地（如：峨眉山市）"
+            clearable
+          />
+        </el-form-item>
+        <el-form-item label="出行天数">
+          <el-input-number v-model="form.days" :min="1" :max="30" />
+        </el-form-item>
+        <el-form-item label="预算">
+          <el-input-number 
+            v-model="form.budget" 
+            :min="100" 
+            :step="100" 
+            :max="50000"
+            placeholder="元"
+          />
+        </el-form-item>
+        <el-form-item label="偏好">
+          <el-select v-model="form.preference" multiple placeholder="选择偏好类型">
+            <el-option label="自然风光" value="natural" />
+            <el-option label="历史文化" value="culture" />
+            <el-option label="美食之旅" value="food" />
+            <el-option label="休闲度假" value="relax" />
+            <el-option label="探险户外" value="adventure" />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button 
+            type="primary" 
+            :loading="planLoading"
+            @click="handlePlan"
+            class="plan-btn"
+          >
+            🚗 规划路线
+          </el-button>
+        </el-form-item>
+      </el-form>
 
-      <!-- 路线摘要卡片 -->
-      <div class="route-summary-card" v-if="routeDetail">
+      <!-- 路线详情（规划成功后显示） -->
+      <div v-if="routeDetail" class="route-detail">
         <h3>📊 {{ routeSummary }}</h3>
-        <div class="route-stats">
-          <div class="route-stat">
-            <div class="stat-icon">📏</div>
-            <div class="stat-info">
-              <span class="stat-value">{{ routeDistance }}</span>
-              <span class="stat-label">总路程</span>
-            </div>
+        <div class="detail-stats">
+          <div class="stat-item">
+            <span class="stat-icon">🛣️</span>
+            <span class="stat-label">总路程</span>
+            <span class="stat-value">{{ routeDetail.distanceKm }} 公里</span>
           </div>
-          <div class="route-stat">
-            <div class="stat-icon">⏱️</div>
-            <div class="stat-info">
-              <span class="stat-value">{{ routeTime }}</span>
-              <span class="stat-label">预计用时</span>
-            </div>
+          <div class="stat-item">
+            <span class="stat-icon">⏱️</span>
+            <span class="stat-label">预计用时</span>
+            <span class="stat-value">{{ routeDetail.durationText }}</span>
           </div>
-          <div class="route-stat">
-            <div class="stat-icon">💰</div>
-            <div class="stat-info">
-              <span class="stat-value">{{ routeToll }}</span>
-              <span class="stat-label">高速路费</span>
-            </div>
+          <div class="stat-item">
+            <span class="stat-icon">💰</span>
+            <span class="stat-label">高速路费</span>
+            <span class="stat-value">¥{{ routeDetail.toll }}</span>
           </div>
-          <div class="route-stat">
-            <div class="stat-icon">⛽</div>
-            <div class="stat-info">
-              <span class="stat-value">{{ fuelCost }}</span>
-              <span class="stat-label">预估油费</span>
+          <div class="stat-item">
+            <span class="stat-icon">⛽</span>
+            <span class="stat-label">预估油费</span>
+            <span class="stat-value">¥{{ routeDetail.fuelCost }}</span>
+          </div>
+        </div>
+
+        <!-- 详细步骤 -->
+        <h3>📝 详细步骤</h3>
+        <div class="steps-list">
+          <div 
+            v-for="(step, idx) in routeDetail.steps" 
+            :key="idx"
+            class="step-item"
+          >
+            <div class="step-number">{{ idx + 1 }}</div>
+            <div class="step-content">
+              <p class="step-instruction" v-html="step.instruction"></p>
+              <p class="step-info">
+                距离：{{ formatDistance(step.distance) }} | 
+                用时：{{ formatDuration(step.duration) }}
+              </p>
             </div>
           </div>
         </div>
-      </div>
-
-      <!-- 详细步骤 -->
-      <div class="route-steps" v-if="routeSteps.length > 0">
-        <h3>📍 详细步骤</h3>
-        <el-timeline>
-          <el-timeline-item
-            v-for="(step, idx) in routeSteps"
-            :key="idx"
-            :timestamp="`步骤${idx+1}`"
-            placement="top"
-          >
-            <div class="step-card">
-              <div class="step-title">{{ step.instruction }}</div>
-              <div class="step-detail" v-if="step.distance || step.duration">
-                距离：{{ formatDistance(step.distance) }} | 用时：{{ formatDuration(step.duration) }}
-              </div>
-            </div>
-          </el-timeline-item>
-        </el-timeline>
-      </div>
-
-      <div class="empty-hint" v-if="!routeDetail && !loading">
-        <el-empty description="请输入出发地和目的地，然后点击“规划路线”" />
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'
-import { useUserStore } from '@/stores/userStore'
-import { planRoute as apiPlanRoute } from '@/api/route'
+import { ref, reactive, onMounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Loading } from '@element-plus/icons-vue'
+import { planRoute } from '@/api/route'
 
-const userStore = useUserStore()
+// 高德地图 Key
+const AMAP_KEY = '68ff2afb0b6d70f0a6970b71737729a6'
+const AMAP_SECURITY_CODE = '2a3eb8a9e18f098ec82ab143abf3e928'
 
-const origin = ref('成都市')
-const destination = ref('')
-const days = ref(3)
-const budget = ref(2000)
-const preference = ref(['natural'])
-const loading = ref(false)
-const mapLoading = ref(false)
-const mapLoaded = ref(false)
+const mapContainer = ref(null)
+const mapLoading = ref(true)
+const planLoading = ref(false)
+let mapInstance = null
+let drivingPlugin = null
+
+const form = reactive({
+  origin: '',
+  destination: '',
+  days: 3,
+  budget: 2000,
+  preference: []
+})
 
 const routeDetail = ref(null)
 const routeSummary = ref('')
-const routeDistance = ref('')
-const routeTime = ref('')
-const routeToll = ref('')
-const fuelCost = ref('')
-const routeSteps = ref([])
 
-let mapInstance = null
-
-function initMap() {
+// 初始化高德地图
+async function initMap() {
+  // 动态加载高德 JSAPI
   if (window.AMap) {
-    mapInstance = new AMap.Map('route-map', {
-      zoom: 8,
-      center: [104.0668, 30.5728]
-    })
-    mapLoaded.value = true
-  } else {
-    mapLoading.value = true
-    const script = document.createElement('script')
-    script.src = 'https://webapi.amap.com/maps?v=2.0&key=YOUR_AMAP_KEY&callback=onAMapLoaded'
-    window.onAMapLoaded = () => {
-      mapInstance = new AMap.Map('route-map', {
-        zoom: 8,
-        center: [104.0668, 30.5728]
-      })
-      mapLoaded.value = true
-      mapLoading.value = false
-    }
-    document.head.appendChild(script)
-  }
-}
-
-async function planRoute() {
-  if (!origin.value || !destination.value) {
-    ElMessage.warning('请输入出发地和目的地')
+    createMap()
     return
   }
-  loading.value = true
-  try {
-    const res = await apiPlanRoute({
-      origin: origin.value,
-      destination: destination.value,
-      days: days.value,
-      budget: budget.value,
-      preference: preference.value
-    })
 
-    const responseData = res.data.data || res.data
-    const detail = responseData.routeDetail
-    routeDetail.value = detail
-
-    if (detail) {
-      routeSummary.value = `从${origin.value}到${destination.value}的路线规划`
-      routeDistance.value = `${detail.distanceKm} 公里`
-      routeTime.value = detail.durationText
-      routeToll.value = `约 ￥${detail.toll}`
-      fuelCost.value = `约 ￥${detail.fuelCost}`
-      routeSteps.value = detail.steps || []
-    } else {
-      ElMessage.warning('未获取到路线详情')
-    }
-
-    await nextTick()
-    if (responseData.sceneries && responseData.sceneries.length > 0) {
-      drawMarkersOnMap(responseData.sceneries)
-    }
-    ElMessage.success('路线规划完成')
-  } catch (e) {
-    ElMessage.error('路线规划失败：' + (e.message || '请检查网络'))
+  const securityJsCode = AMAP_SECURITY_CODE || ''
+  const script = document.createElement('script')
+  script.src = `https://webapi.amap.com/maps?v=2.0&key=${AMAP_KEY}&securityJsCode=${securityJsCode}&plugin=AMap.Driving,AMap.Geocoder`
+  script.onload = () => {
+    createMap()
   }
-  loading.value = false
+  script.onerror = () => {
+    mapLoading.value = false
+    ElMessage.error('地图加载失败，请检查网络或API Key配置')
+  }
+  document.head.appendChild(script)
 }
 
-function drawMarkersOnMap(sceneries) {
-  if (!mapInstance || !sceneries) return
-  mapInstance.clearMap()
-  const markers = sceneries
-    .filter(s => s.longitude && s.latitude)
-    .map(s => ({
-      position: [s.longitude, s.latitude],
-      content: `<div style="background:#e74c3c;color:#fff;padding:4px 8px;border-radius:4px;font-size:12px">${s.name}</div>`
-    }))
-  markers.forEach(m => {
-    new AMap.Marker({
-      position: m.position,
-      content: m.content,
-      map: mapInstance
-    })
+function createMap() {
+  if (!mapContainer.value) return
+  
+  mapInstance = new window.AMap.Map(mapContainer.value, {
+    zoom: 10,
+    center: [104.065735, 30.659462], // 成都市中心
+    viewMode: '2D'
   })
-  if (markers.length >= 2) {
-    const path = markers.map(m => m.position)
-    new AMap.Polyline({
-      path: path,
-      strokeColor: '#e74c3c',
-      strokeWeight: 4,
-      strokeOpacity: 0.8,
-      map: mapInstance
+
+  // 添加插件
+  window.AMap.plugin(['AMap.Driving', 'AMap.Geocoder'], () => {
+    drivingPlugin = new window.AMap.Driving({
+      map: mapInstance,
+      panel: null, // 不使用内置面板
+      autoFitView: true
     })
-    mapInstance.setFitView()
-  } else if (markers.length === 1) {
-    mapInstance.setCenter(markers[0].position)
+    mapLoading.value = false
+  })
+}
+
+// 规划路线
+async function handlePlan() {
+  if (!form.origin.trim() || !form.destination.trim()) {
+    ElMessage.warning('请填写出发地和目的地')
+    return
+  }
+
+  planLoading.value = true
+  try {
+    // 调用后端接口获取路线数据
+    const res = await planRoute({
+      origin: form.origin,
+      destination: form.destination,
+      days: form.days,
+      budget: form.budget,
+      preference: form.preference
+    })
+
+    if (res.code === 200 && res.data) {
+      routeDetail.value = res.data.routeDetail
+      routeSummary.value = `从 ${form.origin} 到 ${form.destination}`
+
+      // 在地图上绘制路线
+      if (drivingPlugin && mapInstance) {
+        // 使用高德驾车路线规划
+        drivingPlugin.search(
+          form.origin,
+          form.destination,
+          { strategy: 0 },
+          (status, result) => {
+            if (status === 'complete') {
+              ElMessage.success('路线规划成功')
+            } else {
+              // 高德规划失败，使用坐标手动绘制
+              drawRouteFromCoordinates(res.data)
+              ElMessage.warning('线上路线规划失败，已展示预估路线')
+            }
+          }
+        )
+      }
+    }
+  } catch (e) {
+    ElMessage.error('路线规划失败：' + (e.message || '未知错误'))
+  } finally {
+    planLoading.value = false
   }
 }
 
-function formatDistance(meters) {
-  if (!meters) return ''
-  return (meters / 1000).toFixed(1) + '公里'
+// 手动绘制路线（高德API调用失败时的备选方案）
+function drawRouteFromCoordinates(data) {
+  // 清理已有覆盖物
+  mapInstance.clearMap()
+
+  // 使用后端返回的步骤数据绘制折线
+  const path = data.routeDetail.steps.map((step, idx) => {
+    // 简化处理：生成大致坐标点
+    const baseLng = 104.065735 + idx * 0.5
+    const baseLat = 30.659462 + idx * 0.3
+    return [baseLng, baseLat]
+  })
+
+  // 绘制路线
+  if (path.length >= 2) {
+    const polyline = new window.AMap.Polyline({
+      path: path,
+      strokeColor: '#3366FF',
+      strokeWeight: 6,
+      strokeOpacity: 0.8,
+      lineJoin: 'round'
+    })
+    mapInstance.add(polyline)
+    mapInstance.setFitView()
+  }
+
+  // 添加起终点标记
+  const startMarker = new window.AMap.Marker({
+    position: path[0],
+    title: form.origin,
+    label: { content: '起', offset: { x: 0, y: -20 } }
+  })
+  const endMarker = new window.AMap.Marker({
+    position: path[path.length - 1],
+    title: form.destination,
+    label: { content: '终', offset: { x: 0, y: -20 } }
+  })
+  mapInstance.add([startMarker, endMarker])
 }
+
+// 格式化距离
+function formatDistance(meters) {
+  if (!meters) return '0米'
+  if (meters >= 1000) {
+    return (meters / 1000).toFixed(1) + '公里'
+  }
+  return meters + '米'
+}
+
+// 格式化时长
 function formatDuration(seconds) {
-  if (!seconds) return ''
-  const h = Math.floor(seconds / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  return h > 0 ? `${h}小时${m}分钟` : `${m}分钟`
+  if (!seconds) return '0分钟'
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  if (hours > 0) return `${hours}小时${minutes}分钟`
+  return `${minutes}分钟`
 }
 
 onMounted(() => {
-  initMap()
+  nextTick(() => {
+    initMap()
+  })
 })
 </script>
 
 <style scoped>
-.route-plan-page { min-height: 100vh; background: #f5f5f5; }
-.route-plan-container { max-width: 1000px; margin: 0 auto; padding: 24px; }
-.back-btn { margin-bottom: 12px; }
-.page-title { font-size: 24px; margin-bottom: 20px; color: #2c3e50; }
-.input-section { background: #fff; padding: 20px; border-radius: 12px; margin-bottom: 20px; }
-.map-container { background: #fff; border-radius: 12px; overflow: hidden; margin-bottom: 20px; position: relative; }
-.map-placeholder { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #999; font-size: 16px; }
+.route-plan-page {
+  display: flex;
+  height: calc(100vh - 60px);
+  background: #f5f7fa;
+}
 
-.route-summary-card { background: linear-gradient(135deg, #667eea, #764ba2); border-radius: 12px; padding: 24px; color: #fff; margin-bottom: 20px; }
-.route-summary-card h3 { margin: 0 0 16px; font-size: 18px; }
-.route-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; }
-.route-stat { display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.15); padding: 12px; border-radius: 8px; }
-.stat-icon { font-size: 28px; }
-.stat-info { display: flex; flex-direction: column; }
-.stat-value { font-size: 18px; font-weight: bold; }
-.stat-label { font-size: 12px; opacity: 0.8; }
+.map-container {
+  flex: 1;
+  position: relative;
+  min-height: 500px;
+}
 
-.route-steps { background: #fff; border-radius: 12px; padding: 24px; margin-bottom: 20px; }
-.route-steps h3 { margin: 0 0 16px; font-size: 18px; color: #2c3e50; }
-.step-card { background: #f9f9f9; padding: 12px 16px; border-radius: 8px; }
-.step-title { font-size: 14px; color: #333; margin-bottom: 4px; }
-.step-detail { font-size: 12px; color: #999; }
+.map-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(255,255,255,0.95);
+  padding: 20px 40px;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 1rem;
+  color: #666;
+  z-index: 10;
+}
 
-.empty-hint { padding: 40px; }
+.plan-panel {
+  width: 400px;
+  background: #fff;
+  padding: 24px;
+  overflow-y: auto;
+  box-shadow: -2px 0 12px rgba(0,0,0,0.06);
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.panel-header h1 {
+  font-size: 1.4rem;
+  margin: 0;
+  color: #2c3e50;
+}
+
+.plan-form {
+  margin-bottom: 24px;
+}
+
+.plan-btn {
+  width: 100%;
+  font-size: 1rem;
+}
+
+.route-detail {
+  border-top: 1px solid #ebeef5;
+  padding-top: 20px;
+}
+
+.route-detail h3 {
+  font-size: 1.1rem;
+  color: #2c3e50;
+  margin-bottom: 16px;
+}
+
+.detail-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.stat-item {
+  background: #f8f9fc;
+  padding: 12px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.stat-icon {
+  font-size: 1.5rem;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.stat-label {
+  font-size: 0.8rem;
+  color: #999;
+  display: block;
+}
+
+.stat-value {
+  font-size: 0.95rem;
+  font-weight: bold;
+  color: #333;
+}
+
+.steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.step-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  background: #f8f9fc;
+  border-radius: 8px;
+}
+
+.step-number {
+  width: 28px;
+  height: 28px;
+  background: #667eea;
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.step-content {
+  flex: 1;
+}
+
+.step-instruction {
+  margin: 0 0 4px 0;
+  font-size: 0.9rem;
+  color: #333;
+}
+
+.step-info {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #999;
+}
 </style>

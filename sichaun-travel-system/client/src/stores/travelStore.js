@@ -11,7 +11,7 @@ export const useTravelStore = defineStore('travel', () => {
   const recommendScenery = ref([])
   const recommendFood = ref([])
   const loading = ref(false)
-
+  
   // 成就相关状态
   const visitedSceneries = ref(new Set())
   const visitedFoods = ref(new Set())
@@ -53,6 +53,27 @@ export const useTravelStore = defineStore('travel', () => {
     loading.value = false
   }
 
+  // ★ 新增：刷新景区数据
+  async function refreshSceneries(params = {}) {
+    await loadSceneries(params)
+    return sceneries.value
+  }
+
+  // ★ 新增：刷新美食数据
+  async function refreshFoods(params = {}) {
+    await loadFoods(params)
+    return foods.value
+  }
+
+  // ★ 新增：刷新推荐数据
+  async function refreshRecommend() {
+    await loadRecommend()
+    return {
+      scenery: recommendScenery.value,
+      food: recommendFood.value
+    }
+  }
+
   // 设置成就数据
   function setAchievements(sceneryIds, foodIds) {
     visitedSceneries.value = new Set(sceneryIds || [])
@@ -77,9 +98,21 @@ export const useTravelStore = defineStore('travel', () => {
   }
 
   return {
-    sceneries, foods, recommendScenery, recommendFood, loading,
-    visitedSceneries, visitedFoods,
-    loadSceneries, loadFoods, loadRecommend,
-    setAchievements, toggleAchievement
+    sceneries,
+    foods,
+    recommendScenery,
+    recommendFood,
+    loading,
+    visitedSceneries,
+    visitedFoods,
+    loadSceneries,
+    loadFoods,
+    loadRecommend,
+    // ★ 新增导出
+    refreshSceneries,
+    refreshFoods,
+    refreshRecommend,
+    setAchievements,
+    toggleAchievement
   }
 })

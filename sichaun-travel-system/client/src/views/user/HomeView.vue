@@ -5,8 +5,8 @@
     
     <!-- Hero 区域 -->
     <section class="hero">
-      <h1>天府之国 · 四川</h1>
-      <p>探秘蜀地山水，品味川味人间 | 18大5A景区等你来</p>
+      <h1>蜀游智行</h1>
+      <p>探秘蜀地山水，品味川味人间</p>
       <div class="hero-actions">
         <el-button type="primary" size="large" @click="$router.push('/recommend')">
           智能推荐旅行
