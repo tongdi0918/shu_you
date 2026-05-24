@@ -18,12 +18,12 @@ CREATE TABLE sceneries (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     city VARCHAR(50) NOT NULL,
-    level VARCHAR(10) DEFAULT '5A',
+    level VARCHAR(80) DEFAULT '5A',
     description TEXT,                    -- 故事化描述
     image_url VARCHAR(500),
     longitude DECIMAL(10,7),
     latitude  DECIMAL(10,7),
-    ticket_price DECIMAL(10,2),
+    ticket_price VARCHAR(102),
     opening_hours VARCHAR(100),
     season_best VARCHAR(50),             -- 最佳游玩季节
     tags VARCHAR(255),                   -- 逗号分隔：自然风光,历史文化,...
@@ -48,17 +48,19 @@ CREATE TABLE foods (
 );
 
 -- 用户行为表（协同过滤训练数据）
-CREATE TABLE user_behaviors (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    item_type ENUM('scenery','food') NOT NULL,
-    item_id INT NOT NULL,
-    rating TINYINT DEFAULT 0,           -- 评分 1-5，0 表示仅浏览
-    action ENUM('view','like','bookmark','rate'),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_user (user_id),
-    INDEX idx_item (item_type, item_id)
-);
+CREATE TABLE IF NOT EXISTS user_behaviors (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  item_type ENUM('scenery','food') NOT NULL,
+  item_id INT NOT NULL,
+  action ENUM('view','like','bookmark','rate') NOT NULL DEFAULT 'view',
+  rating TINYINT DEFAULT NULL,
+  is_visit TINYINT(1) DEFAULT 0 COMMENT '是否实地到访',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
 
 -- 线路规划记录
 CREATE TABLE route_plans (
