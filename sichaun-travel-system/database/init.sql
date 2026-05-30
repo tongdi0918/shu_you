@@ -13,11 +13,12 @@ CREATE TABLE users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 景区表
+-- 景区表（city 拆分为 city 市、district 区/县）
 CREATE TABLE sceneries (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
-    city VARCHAR(50) NOT NULL,
+    city VARCHAR(50) NOT NULL COMMENT '市',
+    district VARCHAR(50) NOT NULL DEFAULT '' COMMENT '区/县',
     level VARCHAR(80) DEFAULT '5A',
     description TEXT,                    -- 故事化描述
     image_url VARCHAR(500),
@@ -31,11 +32,12 @@ CREATE TABLE sceneries (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 美食表
+-- 美食表（city 拆分为 city 市、district 区/县）
 CREATE TABLE foods (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
-    city VARCHAR(50) NOT NULL,
+    city VARCHAR(50) NOT NULL COMMENT '市',
+    district VARCHAR(50) NOT NULL DEFAULT '' COMMENT '区/县',
     category VARCHAR(50),               -- 火锅,小吃,面食,...
     description TEXT,                    -- 故事化描述
     image_url VARCHAR(500),
@@ -60,8 +62,6 @@ CREATE TABLE IF NOT EXISTS user_behaviors (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-
-
 -- 线路规划记录
 CREATE TABLE route_plans (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -85,7 +85,6 @@ CREATE TABLE warnings (
     warning_text VARCHAR(255),
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
-
 
 -- 用户收藏表
 CREATE TABLE favorites (
