@@ -205,4 +205,40 @@ router.post('/achievements/toggle', authenticate, async (req, res) => {
   }
 });
 
+// 更新用户当前位置
+router.put('/current-city', authenticate, async (req, res) => {
+  try {
+    const { current_city } = req.body;
+    if (!current_city) {
+      return res.status(400).json({ code: 400, msg: '当前位置不能为空' });
+    }
+    
+    await pool.query(
+      'UPDATE users SET current_city = ? WHERE id = ?',
+      [current_city, req.user.id]
+    );
+    
+    res.json({ code: 200, msg: '当前位置更新成功', data: { current_city } });
+  } catch (e) {
+    res.status(500).json({ code: 500, msg: e.message });
+  }
+});
+
+// 获取用户当前位置
+router.get('/current-city', authenticate, async (req, res) => {
+  try {
+    const [users] = await pool.query(
+      'SELECT current_city FROM users WHERE id = ?',
+      [req.user.id]
+    );
+    
+    res.json({ 
+      code: 200, 
+      data: { current_city: users[0]?.current_city || null }
+    });
+  } catch (e) {
+    res.status(500).json({ code: 500, msg: e.message });
+  }
+});
+
 module.exports = router;

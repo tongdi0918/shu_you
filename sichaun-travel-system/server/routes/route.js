@@ -111,4 +111,30 @@ router.get('/history', authenticate, async (req, res) => {
   }
 });
 
+// 多地点顺序路线规划
+router.post('/multi-point', authenticate, async (req, res) => {
+  try {
+    const { origin, destination, waypoints } = req.body;
+    
+    if (!origin || !destination) {
+      return res.status(400).json({ code: 400, msg: '出发地和目的地不能为空' });
+    }
+    
+    // 调用高德地图 API 进行路线规划
+    const gaodeService = require('../services/gaodeService');
+    const routeResult = await gaodeService.getDrivingRoute(origin, destination, waypoints);
+    
+    // 保存规划记录
+    await pool.query(
+      `INSERT INTO route_plans (user_id, origin, destination, waypoints, route_json) 
+       VALUES (?, ?, ?, ?, ?)`,
+      [req.user.id, origin, destination, JSON.stringify(waypoints), JSON.stringify(routeResult)]
+    );
+    
+    res.json({ code: 200, data: routeResult });
+  } catch (e) {
+    res.status(500).json({ code: 500, msg: e.message });
+  }
+});
+
 module.exports = router;

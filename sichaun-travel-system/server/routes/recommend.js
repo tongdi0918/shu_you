@@ -73,4 +73,125 @@ router.get('/popular', async (req, res) => {
   }
 });
 
+
+// 获取按城市分组的景区与美食
+router.get('/grouped-by-city', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // 并行获取景区和美食数据
+    const [sceneries, foods] = await Promise.all([
+      pool.query('SELECT * FROM sceneries ORDER BY city, rating DESC'),
+      pool.query('SELECT * FROM foods ORDER BY city, rating DESC')
+    ]);
+    
+    // 按城市分组
+    const groupedData = {};
+    
+    // 处理景区
+    sceneries[0].forEach(scenery => {
+      if (!groupedData[scenery.city]) {
+        groupedData[scenery.city] = { sceneries: [], foods: [] };
+      }
+      groupedData[scenery.city].sceneries.push(scenery);
+    });
+    
+    // 处理美食
+    foods[0].forEach(food => {
+      if (!groupedData[food.city]) {
+        groupedData[food.city] = { sceneries: [], foods: [] };
+      }
+      groupedData[food.city].foods.push(food);
+    });
+    
+    res.json({ code: 200, data: groupedData });
+  } catch (e) {
+    res.status(500).json({ code: 500, msg: e.message });
+  }
+});
+
+// 基于用户选择的景区与美食生成规划
+router.post('/custom-plan', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { selectedSceneries, selectedFoods, currentCity } = req.body;
+    
+    if ((!selectedSceneries || selectedSceneries.length === 0) && 
+        (!selectedFoods || selectedFoods.length === 0)) {
+      return res.status(400).json({ code: 400, msg: '请至少选择一个景点或美食' });
+    }
+    
+    // 获取景区详情
+    let sceneryDetails = [];
+    if (selectedSceneries && selectedSceneries.length > 0) {
+      const placeholders = selectedSceneries.map(() => '?').join(',');
+      const [sceneries] = await pool.query(
+        `SELECT id, name, city, latitude, longitude, description, image_url, rating 
+         FROM sceneries WHERE id IN (${placeholders})`,
+        selectedSceneries
+      );
+      sceneryDetails = sceneries;
+    }
+    
+    // 获取美食详情
+    let foodDetails = [];
+    if (selectedFoods && selectedFoods.length > 0) {
+      const placeholders = selectedFoods.map(() => '?').join(',');
+      const [foods] = await pool.query(
+        `SELECT id, name, city, latitude, longitude, description, image_url, rating 
+         FROM foods WHERE id IN (${placeholders})`,
+        selectedFoods
+      );
+      foodDetails = foods;
+    }
+    
+    // 合并并排序：按城市分组，同一城市的景区和美食排列在一起
+    const allItems = [...sceneryDetails, ...foodDetails];
+    const groupedItems = {};
+    allItems.forEach(item => {
+      if (!groupedItems[item.city]) {
+        groupedItems[item.city] = [];
+      }
+      groupedItems[item.city].push({
+        ...item,
+        type: sceneryDetails.some(s => s.id === item.id) ? 'scenery' : 'food'
+      });
+    });
+    
+    // 规划路线：按城市分组，同一城市内先景区后美食
+    const itinerary = [];
+    for (const city in groupedItems) {
+      // 同一城市内排序：景区在前，美食在后
+      const sceneriesInCity = groupedItems[city].filter(i => i.type === 'scenery');
+      const foodsInCity = groupedItems[city].filter(i => i.type === 'food');
+      const sortedItems = [...sceneriesInCity, ...foodsInCity];
+      itinerary.push(...sortedItems);
+    }
+    
+    // 更新用户行为记录（记录用户选择）
+    const itemsToRecord = [...sceneryDetails, ...foodDetails];
+    for (const item of itemsToRecord) {
+      const itemType = sceneryDetails.some(s => s.id === item.id) ? 'scenery' : 'food';
+      await pool.query(
+        `INSERT INTO user_behaviors (user_id, item_type, item_id, action, is_visit) 
+         VALUES (?, ?, ?, 'like', 1) 
+         ON DUPLICATE KEY UPDATE is_visit = 1`,
+        [userId, itemType, item.id]
+      );
+    }
+    
+    // 更新用户当前位置
+    if (currentCity) {
+      await pool.query(
+        'UPDATE users SET current_city = ? WHERE id = ?',
+        [currentCity, userId]
+      );
+    }
+    
+    res.json({ code: 200, data: { itinerary, groupedItems } });
+  } catch (e) {
+    res.status(500).json({ code: 500, msg: e.message });
+  }
+});
+
 module.exports = router;
