@@ -72,12 +72,7 @@
           </div>
         </div>
 
-        <!-- 原有文字信息保留（确保旧功能不缺省） -->
-        <p><strong>总路程：</strong>{{ routeDistance }}</p>
-        <p><strong>预计用时：</strong>{{ routeTime }}</p>
-        <p><strong>高速过路费：</strong>{{ routeTolls }}</p>
-
-        <h3 style="margin-top: 16px;">详细路段（点击卡片可查看详情）</h3>
+        <h3 style="margin-top: 16px;">详细路段</h3>
         <!-- 方块式路段展示 -->
         <div class="steps-grid">
           <div
@@ -460,7 +455,7 @@ onMounted(async () => {
 }
 
 .step-index {
-  background: #4caf50;
+  background-image: #4caf50;
   color: white;
   width: 28px;
   height: 28px;

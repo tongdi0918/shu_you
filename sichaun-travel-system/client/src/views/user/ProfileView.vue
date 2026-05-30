@@ -12,6 +12,7 @@
           <p><strong>用户名：</strong>{{ profile.username }}</p>
           <p><strong>注册时间：</strong>{{ formatDate(profile.created_at) }}</p>
           <p><strong>手机号：</strong>{{ profile.phone || '未设置' }}</p>
+          <p><strong>所在城市：</strong>{{ profile.city || '未设置' }}</p>
         </div>
         <el-button type="primary" @click="showEditDialog = true">✏️ 修改信息</el-button>
       </div>
@@ -73,6 +74,7 @@
       </div>
     </div>
 
+    <!-- 编辑对话框 -->
     <el-dialog v-model="showEditDialog" title="修改个人信息" width="400px">
       <el-form :model="editForm" label-width="80px">
         <el-form-item label="手机号">
@@ -80,6 +82,9 @@
         </el-form-item>
         <el-form-item label="头像URL">
           <el-input v-model="editForm.avatar" placeholder="请输入头像URL" />
+        </el-form-item>
+        <el-form-item label="所在城市">
+          <el-input v-model="editForm.city" placeholder="请输入所在城市" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -98,12 +103,12 @@ import { getSceneries } from '@/api/scenic'
 import { getFoods } from '@/api/food'
 import { ElMessage } from 'element-plus'
 import axios from 'axios'
+import { getCurrentCity, updateCurrentCity } from '@/api'
 
 const userStore = useUserStore()
-
-const profile = ref({ username: '', phone: '', avatar: '', created_at: '' })
+const profile = ref({ username: '', phone: '', avatar: '', created_at: '', city: '' })
 const showEditDialog = ref(false)
-const editForm = ref({ phone: '', avatar: '' })
+const editForm = ref({ phone: '', avatar: '', city: '' })
 
 const activeTab = ref('scenery')
 const allSceneries = ref([])
@@ -115,8 +120,21 @@ async function loadProfile() {
   try {
     const res = await getProfile()
     profile.value = res.data || res
+    // 如果 getProfile 没有返回城市，则单独获取城市信息
+    if (!profile.value.city) {
+      try {
+        const cityRes = await getCurrentCity()
+        if (cityRes.data.code === 200) {
+          profile.value.city = cityRes.data.data.current_city || ''
+        }
+      } catch (e) {
+        console.error('获取当前城市失败', e)
+      }
+    }
+    // 同步编辑表单
     editForm.value.phone = profile.value.phone || ''
     editForm.value.avatar = profile.value.avatar || ''
+    editForm.value.city = profile.value.city || ''
   } catch (e) {
     console.error('加载个人信息失败', e)
   }
@@ -124,12 +142,18 @@ async function loadProfile() {
 
 async function saveProfile() {
   try {
+    // 更新手机号和头像
     await updateProfile({ phone: editForm.value.phone, avatar: editForm.value.avatar })
+    // 更新城市（如果发生变化）
+    if (editForm.value.city !== profile.value.city) {
+      await updateCurrentCity(editForm.value.city)
+    }
     ElMessage.success('个人信息更新成功')
     showEditDialog.value = false
-    loadProfile()
+    // 重新加载数据
+    await loadProfile()
   } catch (e) {
-    ElMessage.error('更新失败')
+    ElMessage.error('更新失败，请稍后重试')
   }
 }
 
@@ -210,7 +234,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* 保持原有样式 */
+/* 保持原有样式不变 */
 .profile-page { min-height: 100vh; background: #f5f5f5; }
 .profile-container { max-width: 900px; margin: 0 auto; padding: 24px; }
 .page-title { font-size: 24px; margin-bottom: 20px; color: #2c3e50; }
